@@ -2,20 +2,13 @@ import EventEmitter from 'events';
 import Deferred from 'mozilla-deferred';
 import Room from './Room';
 
-export class FirebaseChat {
+export default class FirebaseChat {
 	constructor(auth, database){
 		this.auth = auth;
-		this.database = database;
-		this.userFirebase = null;
+		this.ref = database.ref('rooms');
 
 		this.rooms = {};
 		this.pendings = {};
-
-		this.auth.onAuthStateChanged(user => {
-			if(user){
-				this.userFirebase = user;
-			}
-		});
 	}
 
 	createRoom(name){
@@ -27,13 +20,13 @@ export class FirebaseChat {
 
 		this.pendings[name] = deferred;
 
-		const ref = this.database.ref('rooms/'+name);
+		const ref = this.ref.child(name);
 
 		ref.once('value', snapshot => {
 			if(!snapshot.hasChildren()){
 				ref.set({
-					users: [],
-					chats: []
+					users: "",
+					chats: ""
 				});
 			}
 
@@ -52,7 +45,7 @@ export class FirebaseChat {
 
 		this.pendings[name] = deferred;
 
-		this.database.ref('rooms/'+name).remove().then(() => this.pendings[name].resolve(true));
+		this.ref.child(name).remove().then(() => this.pendings[name].resolve(true));
 
 		return deferred.promise;
 

@@ -3,8 +3,10 @@ import Deferred from 'mozilla-deferred';
 import User from './User';
 import Chat from './Chat';
 
-export class Room extends EventEmitter{ //ref room
+export default class Room extends EventEmitter{ //ref room
 	constructor(name, ref){
+		super();
+
 		this.name = name;
 		this.ref = ref;
 		this.users = [];
@@ -22,7 +24,7 @@ export class Room extends EventEmitter{ //ref room
 	initRefUser(){
 		this.ref.child('users').on('child_added', snapshot => {
 			let uid = snapshot.key;
-
+			console.log(snapshot.hasChildren());
 			this.users[uid] = new User(uid, snapshot.val(), this, this.ref.child('users/'+uid));
 
 			if(typeof this.pendings.users[uid] != 'undefined'){
@@ -47,7 +49,7 @@ export class Room extends EventEmitter{ //ref room
 		this.ref.child('chats').on('child_added', snapshot => {
 			let id = snapshot.key;
 
-			this.chats[id] = new Chat(id, this, this.ref.child('child/'+id));
+			this.chats[id] = new Chat(id, snapshot.val(), this, this.ref.child('child/'+id));
 
 			if(typeof this.pendings.chats[id] != 'undefined'){
 				this.pendings.chats[id].resolve(this.chats[id]);
@@ -118,7 +120,7 @@ export class Room extends EventEmitter{ //ref room
 
 		this.ref.child('chats/'+id).set({
 			users: [],
-			messages[]
+			messages: []
 		});
 
 		return deferred.promise;

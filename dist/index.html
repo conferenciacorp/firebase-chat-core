@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8"/>
+		<script src="https://www.gstatic.com/firebasejs/4.9.1/firebase.js"></script>
+		<script src="index.js"></script>
+		<script>
+			var snapshots = [];
+			// Initialize Firebase
+			var config = {
+				apiKey: "AIzaSyAXiF9S5Ph7N1mb8FYQxSEfbqfhLx38Mos",
+				authDomain: "helloworld-5b272.firebaseapp.com",
+				databaseURL: "https://helloworld-5b272.firebaseio.com",
+				projectId: "helloworld-5b272",
+				storageBucket: "helloworld-5b272.appspot.com",
+				messagingSenderId: "777363750227"
+			};
+			firebase.initializeApp(config);
+
+			var firebaseChat = new FirebaseChat(firebase.auth(), firebase.database());
+
+			firebase.auth().signInAnonymously().catch(function(error) {
+				var errorCode = error.code;
+				var errorMessage = error.message;
+				if (errorCode === 'auth/operation-not-allowed') {
+					alert('You must enable Anonymous auth in the Firebase Console.');
+				} else {
+					console.error(error);
+				}
+			});
+
+			console.log(firebaseChat);
+		</script>
+	</head>
+	<body>
+	</body>
+</html>
