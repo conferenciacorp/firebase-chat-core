@@ -3,42 +3,27 @@ import Deferred from 'mozilla-deferred';
 
 export default class Chat extends EventEmitter{
 
-	constructor(id, chat, room, ref){
+	constructor(id, room, ref){
 		super();
 
 		this.id = id;
 		this.room = room;
 		this.ref = ref;
 
-		this.users = Object.keys(chat.users).forEach(key => {
-			return this.room.users[chat.users[key]];
-		});
+		this.pendings = {};
 
-		this.messages = Object.keys(chat.messages).forEach(key => {
-			return chat.messages[key];
-		}).sort((a, b) => {
-			if(a.time > b.time){
-				return -1;
-			}
-
-			if(b.time > a.time){
-				return 1;
-			}
-
-			return 0;
-		});
+		this.users = {};
+		this.messages = {};
 
 		this.initRefUser();
 		this.initRefMessages();
-
 	}
 
 	initRefUser(){
 		const users = this.ref.child('users');
-		const key = users.push().key;
 
-		users.orderByKey().startAt(key).on('child_added', snapshot => {
-			const uid = snapshot.val();
+		users.on('child_added', snapshot => {
+			const uid = snapshot.key;
 			const user = this.room.users[uid];
 
 			user.appendConversation(this.id);
@@ -46,15 +31,18 @@ export default class Chat extends EventEmitter{
 			this.users[uid] = snapshot.key;
 
 			this.pendings[uid].resolve(true);
-		});
-
-		users.orderByKey().startAt(key).on('child_removed', snapshot => {
-			const uid = snapshot.val();
 
 			delete this.pendings[uid];
+		});
+
+		users.on('child_removed', snapshot => {
+			const uid = snapshot.key;
+
 			delete this.users[uid];
 
 			this.pendings[uid].resolve(true);
+
+			delete this.pendings[uid];
 		});
 	}
 
@@ -73,7 +61,7 @@ export default class Chat extends EventEmitter{
 
 		this.pendings[user.id] = deferred;
 
-		this.ref.child('users').push(user.id);
+		this.ref.child('users/'+user.id).set(user.name);
 
 		return deferred.promise;
 	}

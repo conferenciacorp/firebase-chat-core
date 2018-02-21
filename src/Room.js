@@ -9,8 +9,8 @@ export default class Room extends EventEmitter{ //ref room
 
 		this.name = name;
 		this.ref = ref;
-		this.users = [];
-		this.chats = [];
+		this.users = {};
+		this.chats = {};
 
 		this.pendings = {
 			users: {},
@@ -24,7 +24,7 @@ export default class Room extends EventEmitter{ //ref room
 	initRefUser(){
 		this.ref.child('users').on('child_added', snapshot => {
 			let uid = snapshot.key;
-			console.log(snapshot.hasChildren());
+
 			this.users[uid] = new User(uid, snapshot.val(), this, this.ref.child('users/'+uid));
 
 			if(typeof this.pendings.users[uid] != 'undefined'){
@@ -49,7 +49,7 @@ export default class Room extends EventEmitter{ //ref room
 		this.ref.child('chats').on('child_added', snapshot => {
 			let id = snapshot.key;
 
-			this.chats[id] = new Chat(id, snapshot.val(), this, this.ref.child('child/'+id));
+			this.chats[id] = new Chat(id, this, this.ref.child('child/'+id));
 
 			if(typeof this.pendings.chats[id] != 'undefined'){
 				this.pendings.chats[id].resolve(this.chats[id]);
@@ -82,7 +82,6 @@ export default class Room extends EventEmitter{ //ref room
 			name: name,
 			online: true,
 			status: 'visible',
-			room: this.name,
 			conversations: []
 		});
 
@@ -103,27 +102,18 @@ export default class Room extends EventEmitter{ //ref room
 		return deferred.promise;
 	}
 
-	createChat(id = null){
-		if(id == null){
-			do{
-				id = Utils.generateId(28);
-			}while(typeof this.chats[id] != 'undefined');
+	createChat(id){
+		const ref = this.ref.child('chats');
+		id = id || ref.push().key;
+
+		console.log(id);
+
+		if(typeof this.chats[id] == 'undefined'){
+			this.chats[id] = new Chat(id, this, ref.child(id));
 		}
 
-		if(typeof this.chats[id] != 'undefined'){
-			return new Promise((resolve, reject) => resolve(this.chats[id]));
-		}
+		return this.chats[id];
 
-		let deferred = new Deferred();
-
-		this.pendings.chats[id] = deferred;
-
-		this.ref.child('chats/'+id).set({
-			users: [],
-			messages: []
-		});
-
-		return deferred.promise;
 	}
 
 	deleteChat(id){

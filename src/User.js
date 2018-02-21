@@ -7,28 +7,37 @@ export default class User extends EventEmitter{
 	static STATUS_INVISIBLE = "invisible";
 	static STATUS_AWAY = "away";
 
-	constructor(uid, user, room, ref){
+	constructor(id, user, room, ref){
 		super();
 
-		this.uid = uid;
+		this.id = id;
 		this.name = user.name;
 		this.online = user.online;
 		this.status = user.status;
 		this.room = room;
 		this.conversations = {};
 
-		Object.keys(user.conversations).forEach(key => {
-			let conversation = user.conversations[key];
-			this.conversations[key] = new Conversation(this, this.room.chats[conversation.chatId], conversation.lastSeen);
-		});
+		if(typeof user.conversations != 'undefined'){
+			Object.keys(user.conversations).forEach(key => {
+				let conversation = user.conversations[key];
+				this.conversations[key] = new Conversation(this, this.room.chats[conversation.chatId], conversation.lastSeen);
+			});
+		}
 
 		this.ref = ref;
 
 		this.ref.on('value', snapshot => {
 			let user = snapshot.val();
 
-			if(user.online !== true){
-				this.update({online: true})
+			if(user == null){
+				return;
+			}
+
+			if(user.online !== true || this.online !== true){
+				this.online = true;
+				this.ref.update({
+					online: true
+				});
 			}
 		});
 
@@ -42,7 +51,9 @@ export default class User extends EventEmitter{
 		var key = refConversation.push().key;
 
 		refConversation.orderByKey().startAt(key).on('child_added', snapshot => {
+			let key = snapshot.key;
 			let conversation = snapshot.val();
+
 			this.conversations[key] = new Conversation(this, this.room.chats[conversation.chatId], conversation.lastSeen);
 		});
 	}

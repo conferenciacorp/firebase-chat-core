@@ -3,8 +3,7 @@ import Deferred from 'mozilla-deferred';
 import Room from './Room';
 
 export default class FirebaseChat {
-	constructor(auth, database){
-		this.auth = auth;
+	constructor(database){
 		this.ref = database.ref('rooms');
 
 		this.rooms = {};

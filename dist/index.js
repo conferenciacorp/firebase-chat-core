@@ -447,10 +447,9 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
 var FirebaseChat = function () {
-	function FirebaseChat(auth, database) {
+	function FirebaseChat(database) {
 		_classCallCheck(this, FirebaseChat);
 
-		this.auth = auth;
 		this.ref = database.ref('rooms');
 
 		this.rooms = {};
@@ -542,6 +541,10 @@ var _Chat = __webpack_require__(7);
 
 var _Chat2 = _interopRequireDefault(_Chat);
 
+var _Utils = __webpack_require__(8);
+
+var _Utils2 = _interopRequireDefault(_Utils);
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -561,8 +564,8 @@ var Room = function (_EventEmitter) {
 
 		_this.name = name;
 		_this.ref = ref;
-		_this.users = [];
-		_this.chats = [];
+		_this.users = {};
+		_this.chats = {};
 
 		_this.pendings = {
 			users: {},
@@ -581,7 +584,7 @@ var Room = function (_EventEmitter) {
 
 			this.ref.child('users').on('child_added', function (snapshot) {
 				var uid = snapshot.key;
-				console.log(snapshot.hasChildren());
+
 				_this2.users[uid] = new _User2.default(uid, snapshot.val(), _this2, _this2.ref.child('users/' + uid));
 
 				if (typeof _this2.pendings.users[uid] != 'undefined') {
@@ -609,7 +612,7 @@ var Room = function (_EventEmitter) {
 			this.ref.child('chats').on('child_added', function (snapshot) {
 				var id = snapshot.key;
 
-				_this3.chats[id] = new _Chat2.default(id, snapshot.val(), _this3, _this3.ref.child('child/' + id));
+				_this3.chats[id] = new _Chat2.default(id, _this3, _this3.ref.child('child/' + id));
 
 				if (typeof _this3.pendings.chats[id] != 'undefined') {
 					_this3.pendings.chats[id].resolve(_this3.chats[id]);
@@ -647,7 +650,6 @@ var Room = function (_EventEmitter) {
 				name: name,
 				online: true,
 				status: 'visible',
-				room: this.name,
 				conversations: []
 			});
 
@@ -672,33 +674,17 @@ var Room = function (_EventEmitter) {
 		}
 	}, {
 		key: 'createChat',
-		value: function createChat() {
-			var _this5 = this;
+		value: function createChat(id) {
+			var ref = this.ref.child('chats');
+			id = id || ref.push().key;
 
-			var id = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : null;
+			console.log(id);
 
-			if (id == null) {
-				do {
-					id = Utils.generateId(28);
-				} while (typeof this.chats[id] != 'undefined');
+			if (typeof this.chats[id] == 'undefined') {
+				this.chats[id] = new _Chat2.default(id, this, ref.child(id));
 			}
 
-			if (typeof this.chats[id] != 'undefined') {
-				return new Promise(function (resolve, reject) {
-					return resolve(_this5.chats[id]);
-				});
-			}
-
-			var deferred = new _mozillaDeferred2.default();
-
-			this.pendings.chats[id] = deferred;
-
-			this.ref.child('chats/' + id).set({
-				users: [],
-				messages: []
-			});
-
-			return deferred.promise;
+			return this.chats[id];
 		}
 	}, {
 		key: 'deleteChat',
@@ -760,30 +746,39 @@ function _inherits(subClass, superClass) { if (typeof superClass !== "function" 
 var User = function (_EventEmitter) {
 	_inherits(User, _EventEmitter);
 
-	function User(uid, user, room, ref) {
+	function User(id, user, room, ref) {
 		_classCallCheck(this, User);
 
 		var _this = _possibleConstructorReturn(this, (User.__proto__ || Object.getPrototypeOf(User)).call(this));
 
-		_this.uid = uid;
+		_this.id = id;
 		_this.name = user.name;
 		_this.online = user.online;
 		_this.status = user.status;
 		_this.room = room;
 		_this.conversations = {};
 
-		Object.keys(user.conversations).forEach(function (key) {
-			var conversation = user.conversations[key];
-			_this.conversations[key] = new _Conversation2.default(_this, _this.room.chats[conversation.chatId], conversation.lastSeen);
-		});
+		if (typeof user.conversations != 'undefined') {
+			Object.keys(user.conversations).forEach(function (key) {
+				var conversation = user.conversations[key];
+				_this.conversations[key] = new _Conversation2.default(_this, _this.room.chats[conversation.chatId], conversation.lastSeen);
+			});
+		}
 
 		_this.ref = ref;
 
 		_this.ref.on('value', function (snapshot) {
 			var user = snapshot.val();
 
-			if (user.online !== true) {
-				_this.update({ online: true });
+			if (user == null) {
+				return;
+			}
+
+			if (user.online !== true || _this.online !== true) {
+				_this.online = true;
+				_this.ref.update({
+					online: true
+				});
 			}
 		});
 
@@ -893,7 +888,7 @@ function _inherits(subClass, superClass) { if (typeof superClass !== "function" 
 var Chat = function (_EventEmitter) {
 	_inherits(Chat, _EventEmitter);
 
-	function Chat(id, chat, room, ref) {
+	function Chat(id, room, ref) {
 		_classCallCheck(this, Chat);
 
 		var _this = _possibleConstructorReturn(this, (Chat.__proto__ || Object.getPrototypeOf(Chat)).call(this));
@@ -902,27 +897,13 @@ var Chat = function (_EventEmitter) {
 		_this.room = room;
 		_this.ref = ref;
 
-		_this.users = Object.keys(chat.users).forEach(function (key) {
-			return _this.room.users[chat.users[key]];
-		});
+		_this.pendings = {};
 
-		_this.messages = Object.keys(chat.messages).forEach(function (key) {
-			return chat.messages[key];
-		}).sort(function (a, b) {
-			if (a.time > b.time) {
-				return -1;
-			}
-
-			if (b.time > a.time) {
-				return 1;
-			}
-
-			return 0;
-		});
+		_this.users = {};
+		_this.messages = {};
 
 		_this.initRefUser();
 		_this.initRefMessages();
-
 		return _this;
 	}
 
@@ -932,10 +913,9 @@ var Chat = function (_EventEmitter) {
 			var _this2 = this;
 
 			var users = this.ref.child('users');
-			var key = users.push().key;
 
-			users.orderByKey().startAt(key).on('child_added', function (snapshot) {
-				var uid = snapshot.val();
+			users.on('child_added', function (snapshot) {
+				var uid = snapshot.key;
 				var user = _this2.room.users[uid];
 
 				user.appendConversation(_this2.id);
@@ -943,15 +923,18 @@ var Chat = function (_EventEmitter) {
 				_this2.users[uid] = snapshot.key;
 
 				_this2.pendings[uid].resolve(true);
-			});
-
-			users.orderByKey().startAt(key).on('child_removed', function (snapshot) {
-				var uid = snapshot.val();
 
 				delete _this2.pendings[uid];
+			});
+
+			users.on('child_removed', function (snapshot) {
+				var uid = snapshot.key;
+
 				delete _this2.users[uid];
 
 				_this2.pendings[uid].resolve(true);
+
+				delete _this2.pendings[uid];
 			});
 		}
 	}, {
@@ -974,7 +957,7 @@ var Chat = function (_EventEmitter) {
 
 			this.pendings[user.id] = deferred;
 
-			this.ref.child('users').push(user.id);
+			this.ref.child('users/' + user.id).set(user.name);
 
 			return deferred.promise;
 		}
@@ -1000,6 +983,43 @@ var Chat = function (_EventEmitter) {
 }(_events2.default);
 
 exports.default = Chat;
+
+/***/ }),
+/* 8 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+	value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var Utils = exports.Utils = function () {
+	function Utils() {
+		_classCallCheck(this, Utils);
+	}
+
+	_createClass(Utils, [{
+		key: "generateId",
+		value: function generateId(length) {
+			var text = "";
+			var possible = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+			for (var i = 0; i < length; i++) {
+				text += possible.charAt(Math.floor(Math.random() * possible.length));
+			}
+
+			return text;
+		}
+	}]);
+
+	return Utils;
+}();
 
 /***/ })
 /******/ ]);
