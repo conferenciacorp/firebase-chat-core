@@ -15,14 +15,15 @@ export default class Room extends EventEmitter{ //ref room
 	}
 
 	initRefUser(){
-		this.ref.child('users').on('child_added', snapshot => {
+		const refUsers = this.ref.child('users');
+		refUsers.on('child_added', snapshot => {
 			const uid = snapshot.key;
 			const user = new User(uid, snapshot.val(), this, this.ref.child('users/'+uid));
 
 			this.emit("user_enter", user);
 		});
 
-		this.ref.child('users').on('child_removed', snapshot => {
+		refUsers.on('child_removed', snapshot => {
 			let uid = snapshot.key;
 
 			this.emit("user_leave", uid);
@@ -32,7 +33,7 @@ export default class Room extends EventEmitter{ //ref room
 	initRefChat(){
 		this.ref.child('chats').on('child_added', snapshot => {
 			const id = snapshot.key;
-			const chat = new Chat(id, snapshot.val(), this, this.ref.child('child/'+id));
+			const chat = new Chat(id, snapshot.val(), this, this.ref.child('chats/'+id));
 
 			this.emit("chat_create", chat);
 		});
@@ -65,6 +66,7 @@ export default class Room extends EventEmitter{ //ref room
 			}
 
 			const user = new User(uid, data, this, ref);
+			user.thisIsMe();
 
 			deferred.resolve(user);
 		});

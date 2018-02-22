@@ -60,7 +60,7 @@
 /******/ 	__webpack_require__.p = "";
 /******/
 /******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = 3);
+/******/ 	return __webpack_require__(__webpack_require__.s = 4);
 /******/ })
 /************************************************************************/
 /******/ ([
@@ -423,6 +423,10 @@ var _mozillaDeferred = __webpack_require__(1);
 
 var _mozillaDeferred2 = _interopRequireDefault(_mozillaDeferred);
 
+var _Prototypes = __webpack_require__(3);
+
+var _Prototypes2 = _interopRequireDefault(_Prototypes);
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -443,11 +447,8 @@ var Chat = function (_EventEmitter) {
 		_this.room = room;
 		_this.ref = ref;
 
-		_this.users = {};
-		_this.messages = {};
-
-		// this.initRefUser();
-		// this.initRefMessages();
+		_this.initRefUser();
+		_this.initRefMessages();
 		return _this;
 	}
 
@@ -461,15 +462,13 @@ var Chat = function (_EventEmitter) {
 			users.on('child_added', function (snapshot) {
 				var uid = snapshot.key;
 
-				_this2.emit('chat_user_join', uid);
+				_this2.emit('user_join', uid);
 			});
 
 			users.on('child_removed', function (snapshot) {
 				var uid = snapshot.key;
 
-				delete _this2.users[uid];
-
-				_this2.emit('chat_user_leave', uid);
+				_this2.emit('user_leave', uid);
 			});
 		}
 	}, {
@@ -478,7 +477,7 @@ var Chat = function (_EventEmitter) {
 			var _this3 = this;
 
 			this.ref.child('messages').on('child_added', function (snapshot) {
-				_this3.messages.push(snapshot.val());
+				_this3.emit('new_message', snapshot.val());
 			});
 		}
 	}, {
@@ -487,13 +486,11 @@ var Chat = function (_EventEmitter) {
 			var _this4 = this;
 
 			var deferred = new _mozillaDeferred2.default();
-			var uid = user.id;
 
-			this.ref.child('users/' + uid).set(user.name).then(function () {
-				_this4.users[uid] = user.name;
-				user.appendConversation(_this4.id);
-
-				deferred.resolve(true);
+			this.ref.child('users/' + user.id).set(user.name).then(function () {
+				user.appendConversation(_this4.id).then(function () {
+					deferred.resolve(true);
+				});
 			});
 
 			return deferred.promise;
@@ -517,11 +514,34 @@ var Chat = function (_EventEmitter) {
 	}, {
 		key: 'sendMessage',
 		value: function sendMessage(user, message) {
-			this.ref.child('messages').push({
+			var refMessages = this.ref.child('messages');
+			var key = refMessages.push().key;
+
+			return refMessages.child(key).set({
+				id: key,
 				user: user.id,
 				message: message,
 				time: Date.now()
 			});
+		}
+	}, {
+		key: 'getMessages',
+		value: function getMessages() {
+			var deferred = new _mozillaDeferred2.default();
+
+			this.ref.child('messages').once('value', function (snapshot) {
+				if (!snapshot.hasChildren()) {
+					deferred.resolve([]);
+				}
+
+				var messages = Object.values(snapshot.val()).map(function (data) {
+					return data;
+				});
+
+				deferred.resolve(messages);
+			});
+
+			return deferred.promise;
 		}
 	}]);
 
@@ -537,7 +557,20 @@ exports.default = Chat;
 "use strict";
 
 
-var _FirebaseChat = __webpack_require__(4);
+if (!Date.now) {
+	Date.now = function () {
+		return new Date().getTime();
+	};
+}
+
+/***/ }),
+/* 4 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var _FirebaseChat = __webpack_require__(5);
 
 var _FirebaseChat2 = _interopRequireDefault(_FirebaseChat);
 
@@ -546,7 +579,7 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 window.FirebaseChat = _FirebaseChat2.default;
 
 /***/ }),
-/* 4 */
+/* 5 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -566,7 +599,7 @@ var _mozillaDeferred = __webpack_require__(1);
 
 var _mozillaDeferred2 = _interopRequireDefault(_mozillaDeferred);
 
-var _Room = __webpack_require__(5);
+var _Room = __webpack_require__(6);
 
 var _Room2 = _interopRequireDefault(_Room);
 
@@ -599,7 +632,7 @@ var FirebaseChat = function () {
 exports.default = FirebaseChat;
 
 /***/ }),
-/* 5 */
+/* 6 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -619,7 +652,7 @@ var _mozillaDeferred = __webpack_require__(1);
 
 var _mozillaDeferred2 = _interopRequireDefault(_mozillaDeferred);
 
-var _User = __webpack_require__(6);
+var _User = __webpack_require__(7);
 
 var _User2 = _interopRequireDefault(_User);
 
@@ -657,14 +690,15 @@ var Room = function (_EventEmitter) {
 		value: function initRefUser() {
 			var _this2 = this;
 
-			this.ref.child('users').on('child_added', function (snapshot) {
+			var refUsers = this.ref.child('users');
+			refUsers.on('child_added', function (snapshot) {
 				var uid = snapshot.key;
 				var user = new _User2.default(uid, snapshot.val(), _this2, _this2.ref.child('users/' + uid));
 
 				_this2.emit("user_enter", user);
 			});
 
-			this.ref.child('users').on('child_removed', function (snapshot) {
+			refUsers.on('child_removed', function (snapshot) {
 				var uid = snapshot.key;
 
 				_this2.emit("user_leave", uid);
@@ -677,7 +711,7 @@ var Room = function (_EventEmitter) {
 
 			this.ref.child('chats').on('child_added', function (snapshot) {
 				var id = snapshot.key;
-				var chat = new _Chat2.default(id, snapshot.val(), _this3, _this3.ref.child('child/' + id));
+				var chat = new _Chat2.default(id, snapshot.val(), _this3, _this3.ref.child('chats/' + id));
 
 				_this3.emit("chat_create", chat);
 			});
@@ -715,6 +749,7 @@ var Room = function (_EventEmitter) {
 				}
 
 				var user = new _User2.default(uid, data, _this4, ref);
+				user.thisIsMe();
 
 				deferred.resolve(user);
 			});
@@ -772,7 +807,7 @@ var Room = function (_EventEmitter) {
 exports.default = Room;
 
 /***/ }),
-/* 6 */
+/* 7 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -796,7 +831,7 @@ var _Chat = __webpack_require__(2);
 
 var _Chat2 = _interopRequireDefault(_Chat);
 
-var _Conversation = __webpack_require__(7);
+var _Conversation = __webpack_require__(8);
 
 var _Conversation2 = _interopRequireDefault(_Conversation);
 
@@ -821,36 +856,21 @@ var User = function (_EventEmitter) {
 		_this.online = user.online;
 		_this.status = user.status;
 		_this.room = room;
-		_this.conversations = {};
-
-		if (typeof user.conversations != 'undefined') {
-			Object.values(user.conversations).map(function (conversation) {
-				var idChat = conversation.idChat;
-				var chat = new _Chat2.default(idChat, _this.room, _this.room.ref.child('chats/' + idChat));
-
-				_this.conversations[idChat] = new _Conversation2.default(_this, chat, conversation.lastSeen);
-			});
-		}
 
 		_this.ref = ref;
 
 		_this.ref.on('value', function (snapshot) {
 			var user = snapshot.val();
-
-			if (user == null) {
-				return;
+			console.log(user);
+			if (user.status != _this.status) {
+				_this.status = user.status;
+				_this.emit("status_change", user.status);
 			}
 
-			if (user.online !== true || _this.online !== true) {
-				_this.online = true;
-				_this.ref.update({
-					online: true
-				});
+			if (user.online != _this.online) {
+				_this.online = user.online;
+				_this.emit("online_change", user.online);
 			}
-		});
-
-		_this.ref.onDisconnect().update({
-			online: false
 		});
 
 		_this.initRefConversations();
@@ -858,26 +878,48 @@ var User = function (_EventEmitter) {
 	}
 
 	_createClass(User, [{
-		key: 'initRefConversations',
-		value: function initRefConversations() {
+		key: 'getConversations',
+		value: function getConversations() {
 			var _this2 = this;
 
+			var deferred = new _mozillaDeferred2.default();
+
+			this.ref.child('conversations').once('value', function (snapshot) {
+				if (!snapshot.hasChildren()) {
+					deferred.resolve([]);
+				}
+
+				var conversations = Object.values(snapshot.val()).map(function (data) {
+					var idChat = data.idChat;
+					var chat = new _Chat2.default(idChat, _this2.room, _this2.room.ref.child('chats/' + idChat));
+
+					return new _Conversation2.default(_this2, chat, data.lastSeen);
+				});
+
+				deferred.resolve(conversations);
+			});
+
+			return deferred.promise;
+		}
+	}, {
+		key: 'initRefConversations',
+		value: function initRefConversations() {
+			var _this3 = this;
+
 			this.ref.child('conversations').on('child_added', function (snapshot) {
-				var conversation = snapshot.val();
-				var idChat = conversation.idChat;
-				var chat = new _Chat2.default(idChat, _this2.room, _this2.room.ref.child('chats/' + idChat));
+				var data = snapshot.val();
+				var idChat = data.idChat;
+				var chat = new _Chat2.default(idChat, _this3.room, _this3.room.ref.child('chats/' + idChat));
 
-				_this2.conversations[idChat] = new _Conversation2.default(_this2, chat, conversation.lastSeen);
+				var conversation = new _Conversation2.default(_this3, chat, data.lastSeen);
 
-				_this2.emit('conversation_create', _this2.conversations[idChat]);
+				_this3.emit('conversation_create', conversation);
 			});
 
 			this.ref.child('conversations').on('child_removed', function (snapshot) {
 				var key = snapshot.key;
 
-				delete _this2.conversations[key];
-
-				_this2.emit('conversation_remove', key);
+				_this3.emit('conversation_remove', key);
 			});
 		}
 	}, {
@@ -890,6 +932,26 @@ var User = function (_EventEmitter) {
 		value: function removeConversation(idChat) {
 			return this.ref.child('conversations/' + idChat).remove();
 		}
+	}, {
+		key: 'thisIsMe',
+		value: function thisIsMe() {
+			var _this4 = this;
+
+			this.ref.on('value', function (snapshot) {
+				var user = snapshot.val();
+
+				if (user.online !== true || _this4.online !== true) {
+					_this4.online = true;
+					_this4.ref.update({
+						online: true
+					});
+				}
+			});
+
+			this.ref.onDisconnect().update({
+				online: false
+			});
+		}
 	}]);
 
 	return User;
@@ -901,7 +963,7 @@ User.STATUS_AWAY = "away";
 exports.default = User;
 
 /***/ }),
-/* 7 */
+/* 8 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -921,6 +983,10 @@ var _mozillaDeferred = __webpack_require__(1);
 
 var _mozillaDeferred2 = _interopRequireDefault(_mozillaDeferred);
 
+var _Prototypes = __webpack_require__(3);
+
+var _Prototypes2 = _interopRequireDefault(_Prototypes);
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -933,13 +999,23 @@ var Conversation = function () {
 		this.user = user;
 		this.chat = chat;
 		this.lastSeen = lastSeen;
-		// chat.on('new_message', message => {});
+
+		this.listenToChatEvents();
 	}
 
 	_createClass(Conversation, [{
+		key: 'listenToChatEvents',
+		value: function listenToChatEvents() {
+			var _this = this;
+
+			this.chat.on('new_message', function (message) {
+				return _this.emit('new_message', message);
+			});
+		}
+	}, {
 		key: 'sendMessage',
 		value: function sendMessage(message) {
-			this.chat.sendMessage(this.user.id, message);
+			return this.chat.sendMessage(this.user.id, message);
 		}
 	}]);
 

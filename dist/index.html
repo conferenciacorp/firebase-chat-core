@@ -19,14 +19,28 @@
 
 
 			firebase.auth().signInAnonymously().then(({ uid }) => {
+				// room.getUsers().then(users => {
+				// 	users = users;
+				// });
 
 				var firebaseChat = new FirebaseChat(firebase.database());
 
 				var room = firebaseChat.createRoom(1042);
 				window.room = room;
-				room.on('user_enter', console.log);
+
 				room.registerUser(uid, "Marcelo").then(user => {
-					console.log("register", user);
+					window.user = user;
+				});
+
+				var users = [];
+				window.users = users;
+
+
+				room.on('user_enter', (user) => {
+					console.log("user_enter", user);
+					user.on('status_change', console.log);
+					user.on('online_change', console.log);
+					users.push(user);
 				});
 
 			}).catch(function(error) {

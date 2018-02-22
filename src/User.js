@@ -16,25 +16,76 @@ export default class User extends EventEmitter{
 		this.online = user.online;
 		this.status = user.status;
 		this.room = room;
-		this.conversations = {};
-
-		if(typeof user.conversations != 'undefined'){
-			Object.values(user.conversations).map(conversation => {
-				const idChat = conversation.idChat;
-				const chat = new Chat(idChat, this.room, this.room.ref.child('chats/'+idChat));
-
-				this.conversations[idChat] = new Conversation(this, chat, conversation.lastSeen);
-			});
-		}
 
 		this.ref = ref;
 
 		this.ref.on('value', snapshot => {
 			let user = snapshot.val();
-
-			if(user == null){
-				return;
+			console.log(user);
+			if(user.status != this.status){
+				this.status = user.status;
+				this.emit("status_change", user.status);
 			}
+
+			if(user.online != this.online){
+				this.online = user.online;
+				this.emit("online_change", user.online);
+			}
+		});
+
+		this.initRefConversations();
+	}
+
+	getConversations(){
+		const deferred = new Deferred();
+
+		this.ref.child('conversations').once('value', snapshot => {
+			if(!snapshot.hasChildren()){
+				deferred.resolve([]);
+			}
+
+			const conversations = Object.values(snapshot.val()).map(data => {
+				const idChat = data.idChat;
+				const chat = new Chat(idChat, this.room, this.room.ref.child('chats/'+idChat));
+
+				return new Conversation(this, chat, data.lastSeen);
+			});
+
+			deferred.resolve(conversations);
+		});
+
+		return deferred.promise;
+	}
+
+	initRefConversations(){
+		this.ref.child('conversations').on('child_added', snapshot => {
+			const data = snapshot.val();
+			const idChat = data.idChat;
+			const chat = new Chat(idChat, this.room, this.room.ref.child('chats/'+idChat));
+
+			const conversation = new Conversation(this, chat, data.lastSeen);
+
+			this.emit('conversation_create', conversation);
+		});
+
+		this.ref.child('conversations').on('child_removed', snapshot => {
+			let key = snapshot.key;
+
+			this.emit('conversation_remove', key);
+		});
+	}
+
+	appendConversation(idChat){
+		return this.ref.child('conversations/'+idChat).set({idChat: idChat, lastSeen: Date.now()});
+	}
+
+	removeConversation(idChat){
+		return this.ref.child('conversations/'+idChat).remove();
+	}
+
+	thisIsMe(){
+		this.ref.on('value', snapshot => {
+			let user = snapshot.val();
 
 			if(user.online !== true || this.online !== true){
 				this.online = true;
@@ -47,35 +98,5 @@ export default class User extends EventEmitter{
 		this.ref.onDisconnect().update({
 			online: false
 		});
-
-		this.initRefConversations();
-	}
-
-	initRefConversations(){
-		this.ref.child('conversations').on('child_added', snapshot => {
-			const conversation = snapshot.val();
-			const idChat = conversation.idChat;
-			const chat = new Chat(idChat, this.room, this.room.ref.child('chats/'+idChat));
-
-			this.conversations[idChat] = new Conversation(this, chat, conversation.lastSeen);
-
-			this.emit('conversation_create', this.conversations[idChat]);
-		});
-
-		this.ref.child('conversations').on('child_removed', snapshot => {
-			let key = snapshot.key;
-
-			delete this.conversations[key];
-
-			this.emit('conversation_remove', key);
-		});
-	}
-
-	appendConversation(idChat){
-		return this.ref.child('conversations/'+idChat).set({idChat: idChat, lastSeen: Date.now()});
-	}
-
-	removeConversation(idChat){
-		return this.ref.child('conversations/'+idChat).remove();
 	}
 }
