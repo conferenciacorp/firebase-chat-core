@@ -22,11 +22,11 @@
 
 				var firebaseChat = new FirebaseChat(firebase.database());
 
-				firebaseChat.createRoom(1042).then(room => {
-					window.room = room;
-					room.registerUser(uid, "Marcelo").then(user => {
-						console.log(user);
-					});
+				var room = firebaseChat.createRoom(1042);
+				window.room = room;
+				room.on('user_enter', console.log);
+				room.registerUser(uid, "Marcelo").then(user => {
+					console.log("register", user);
 				});
 
 			}).catch(function(error) {

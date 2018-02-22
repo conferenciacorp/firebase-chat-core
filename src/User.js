@@ -1,5 +1,6 @@
 import EventEmitter from 'events';
 import Deferred from 'mozilla-deferred';
+import Chat from './Chat';
 import Conversation from './Conversation';
 
 export default class User extends EventEmitter{
@@ -18,9 +19,11 @@ export default class User extends EventEmitter{
 		this.conversations = {};
 
 		if(typeof user.conversations != 'undefined'){
-			Object.keys(user.conversations).forEach(key => {
-				let conversation = user.conversations[key];
-				this.conversations[key] = new Conversation(this, this.room.chats[conversation.chatId], conversation.lastSeen);
+			Object.values(user.conversations).map(conversation => {
+				const idChat = conversation.idChat;
+				const chat = new Chat(idChat, this.room, this.room.ref.child('chats/'+idChat));
+
+				this.conversations[idChat] = new Conversation(this, chat, conversation.lastSeen);
 			});
 		}
 
@@ -44,21 +47,35 @@ export default class User extends EventEmitter{
 		this.ref.onDisconnect().update({
 			online: false
 		});
+
+		this.initRefConversations();
 	}
 
 	initRefConversations(){
-		var refConversation = this.ref.child('conversations');
-		var key = refConversation.push().key;
+		this.ref.child('conversations').on('child_added', snapshot => {
+			const conversation = snapshot.val();
+			const idChat = conversation.idChat;
+			const chat = new Chat(idChat, this.room, this.room.ref.child('chats/'+idChat));
 
-		refConversation.orderByKey().startAt(key).on('child_added', snapshot => {
+			this.conversations[idChat] = new Conversation(this, chat, conversation.lastSeen);
+
+			this.emit('conversation_create', this.conversations[idChat]);
+		});
+
+		this.ref.child('conversations').on('child_removed', snapshot => {
 			let key = snapshot.key;
-			let conversation = snapshot.val();
 
-			this.conversations[key] = new Conversation(this, this.room.chats[conversation.chatId], conversation.lastSeen);
+			delete this.conversations[key];
+
+			this.emit('conversation_remove', key);
 		});
 	}
 
-	appendConversation(chatId){
-		this.ref.child('conversations').push({chatId: chatId, lastSeen: Date.now()});
+	appendConversation(idChat){
+		return this.ref.child('conversations/'+idChat).set({idChat: idChat, lastSeen: Date.now()});
+	}
+
+	removeConversation(idChat){
+		return this.ref.child('conversations/'+idChat).remove();
 	}
 }

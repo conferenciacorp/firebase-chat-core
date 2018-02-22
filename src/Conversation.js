@@ -9,7 +9,7 @@ export default class Conversation { //ref conversation
 		// chat.on('new_message', message => {});
 	}
 
-	// sendMessage(message){
-	// 	this.chat.sendMessage();
-	// }
+	sendMessage(message){
+		this.chat.sendMessage(this.user.id, message);
+	}
 }

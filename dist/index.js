@@ -60,7 +60,7 @@
 /******/ 	__webpack_require__.p = "";
 /******/
 /******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = 2);
+/******/ 	return __webpack_require__(__webpack_require__.s = 3);
 /******/ })
 /************************************************************************/
 /******/ ([
@@ -409,460 +409,6 @@ module.exports = Deferred;
 "use strict";
 
 
-var _FirebaseChat = __webpack_require__(3);
-
-var _FirebaseChat2 = _interopRequireDefault(_FirebaseChat);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-window.FirebaseChat = _FirebaseChat2.default;
-
-/***/ }),
-/* 3 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", {
-	value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _events = __webpack_require__(0);
-
-var _events2 = _interopRequireDefault(_events);
-
-var _mozillaDeferred = __webpack_require__(1);
-
-var _mozillaDeferred2 = _interopRequireDefault(_mozillaDeferred);
-
-var _Room = __webpack_require__(4);
-
-var _Room2 = _interopRequireDefault(_Room);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-var FirebaseChat = function () {
-	function FirebaseChat(database) {
-		_classCallCheck(this, FirebaseChat);
-
-		this.ref = database.ref('rooms');
-
-		this.rooms = {};
-		this.pendings = {};
-	}
-
-	_createClass(FirebaseChat, [{
-		key: 'createRoom',
-		value: function createRoom(name) {
-			var _this = this;
-
-			if (typeof this.rooms[name] != 'undefined') {
-				return new Promise(function (resolve, reject) {
-					return resolve(_this.rooms[name]);
-				});
-			}
-
-			var deferred = new _mozillaDeferred2.default();
-
-			this.pendings[name] = deferred;
-
-			var ref = this.ref.child(name);
-
-			ref.once('value', function (snapshot) {
-				if (!snapshot.hasChildren()) {
-					ref.set({
-						users: "",
-						chats: ""
-					});
-				}
-
-				_this.rooms[name] = new _Room2.default(name, ref);
-
-				_this.pendings[name].resolve(_this.rooms[name]);
-
-				delete _this.pendings[name];
-			});
-
-			return deferred.promise;
-		}
-	}, {
-		key: 'deleteRoom',
-		value: function deleteRoom(name) {
-			var _this2 = this;
-
-			var deferred = new _mozillaDeferred2.default();
-
-			this.pendings[name] = deferred;
-
-			this.ref.child(name).remove().then(function () {
-				return _this2.pendings[name].resolve(true);
-			});
-
-			return deferred.promise;
-		}
-	}]);
-
-	return FirebaseChat;
-}();
-
-exports.default = FirebaseChat;
-
-/***/ }),
-/* 4 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", {
-	value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _events = __webpack_require__(0);
-
-var _events2 = _interopRequireDefault(_events);
-
-var _mozillaDeferred = __webpack_require__(1);
-
-var _mozillaDeferred2 = _interopRequireDefault(_mozillaDeferred);
-
-var _User = __webpack_require__(5);
-
-var _User2 = _interopRequireDefault(_User);
-
-var _Chat = __webpack_require__(7);
-
-var _Chat2 = _interopRequireDefault(_Chat);
-
-var _Utils = __webpack_require__(8);
-
-var _Utils2 = _interopRequireDefault(_Utils);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var Room = function (_EventEmitter) {
-	_inherits(Room, _EventEmitter);
-
-	//ref room
-	function Room(name, ref) {
-		_classCallCheck(this, Room);
-
-		var _this = _possibleConstructorReturn(this, (Room.__proto__ || Object.getPrototypeOf(Room)).call(this));
-
-		_this.name = name;
-		_this.ref = ref;
-		_this.users = {};
-		_this.chats = {};
-
-		_this.pendings = {
-			users: {},
-			chats: {}
-		};
-
-		_this.initRefUser();
-		_this.initRefChat();
-		return _this;
-	}
-
-	_createClass(Room, [{
-		key: 'initRefUser',
-		value: function initRefUser() {
-			var _this2 = this;
-
-			this.ref.child('users').on('child_added', function (snapshot) {
-				var uid = snapshot.key;
-
-				_this2.users[uid] = new _User2.default(uid, snapshot.val(), _this2, _this2.ref.child('users/' + uid));
-
-				if (typeof _this2.pendings.users[uid] != 'undefined') {
-					_this2.pendings.users[uid].resolve(_this2.users[uid]);
-					delete _this2.pendings.users[uid];
-				}
-			});
-
-			this.ref.child('users').on('child_removed', function (snapshot) {
-				var uid = snapshot.key;
-
-				delete _this2.users[uid];
-
-				if (typeof _this2.pendings.users[uid] != 'undefined') {
-					_this2.pendings.users[uid].resolve();
-					delete _this2.pendings.users[uid];
-				}
-			});
-		}
-	}, {
-		key: 'initRefChat',
-		value: function initRefChat() {
-			var _this3 = this;
-
-			this.ref.child('chats').on('child_added', function (snapshot) {
-				var id = snapshot.key;
-
-				_this3.chats[id] = new _Chat2.default(id, _this3, _this3.ref.child('child/' + id));
-
-				if (typeof _this3.pendings.chats[id] != 'undefined') {
-					_this3.pendings.chats[id].resolve(_this3.chats[id]);
-					delete _this3.pendings.chats[id];
-				}
-			});
-
-			this.ref.child('chats').on('child_removed', function (snapshot) {
-				var id = snapshot.key;
-
-				delete _this3.chats[id];
-
-				if (typeof _this3.pendings.chats[id] != 'undefined') {
-					_this3.pendings.chats[id].resolve();
-					delete _this3.pendings.chats[id];
-				}
-			});
-		}
-	}, {
-		key: 'registerUser',
-		value: function registerUser(uid, name) {
-			var _this4 = this;
-
-			if (typeof this.users[uid] != 'undefined') {
-				return new Promise(function (resolve, reject) {
-					return resolve(_this4.users[uid]);
-				});
-			}
-
-			var deferred = new _mozillaDeferred2.default();
-
-			this.pendings.users[uid] = deferred;
-
-			this.ref.child('users/' + uid).set({
-				name: name,
-				online: true,
-				status: 'visible',
-				conversations: []
-			});
-
-			return deferred.promise;
-		}
-	}, {
-		key: 'unregisterUser',
-		value: function unregisterUser(uid) {
-			if (typeof this.users[uid] == 'undefined') {
-				return new Promise(function (resolve, reject) {
-					return resolve();
-				});
-			}
-
-			var deferred = new _mozillaDeferred2.default();
-
-			this.pendings.users[uid] = deferred;
-
-			this.ref.child('users/' + uid).remove();
-
-			return deferred.promise;
-		}
-	}, {
-		key: 'createChat',
-		value: function createChat(id) {
-			var ref = this.ref.child('chats');
-			id = id || ref.push().key;
-
-			console.log(id);
-
-			if (typeof this.chats[id] == 'undefined') {
-				this.chats[id] = new _Chat2.default(id, this, ref.child(id));
-			}
-
-			return this.chats[id];
-		}
-	}, {
-		key: 'deleteChat',
-		value: function deleteChat(id) {
-			if (typeof this.chats[id] == 'undefined') {
-				return new Promise(function (resolve, reject) {
-					return resolve();
-				});
-			}
-
-			var deferred = new _mozillaDeferred2.default();
-
-			this.pendings.chats[id] = deferred;
-
-			this.ref.child('chats/' + id).remove();
-
-			return deferred.promise;
-		}
-	}]);
-
-	return Room;
-}(_events2.default);
-
-exports.default = Room;
-
-/***/ }),
-/* 5 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", {
-	value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _events = __webpack_require__(0);
-
-var _events2 = _interopRequireDefault(_events);
-
-var _mozillaDeferred = __webpack_require__(1);
-
-var _mozillaDeferred2 = _interopRequireDefault(_mozillaDeferred);
-
-var _Conversation = __webpack_require__(6);
-
-var _Conversation2 = _interopRequireDefault(_Conversation);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var User = function (_EventEmitter) {
-	_inherits(User, _EventEmitter);
-
-	function User(id, user, room, ref) {
-		_classCallCheck(this, User);
-
-		var _this = _possibleConstructorReturn(this, (User.__proto__ || Object.getPrototypeOf(User)).call(this));
-
-		_this.id = id;
-		_this.name = user.name;
-		_this.online = user.online;
-		_this.status = user.status;
-		_this.room = room;
-		_this.conversations = {};
-
-		if (typeof user.conversations != 'undefined') {
-			Object.keys(user.conversations).forEach(function (key) {
-				var conversation = user.conversations[key];
-				_this.conversations[key] = new _Conversation2.default(_this, _this.room.chats[conversation.chatId], conversation.lastSeen);
-			});
-		}
-
-		_this.ref = ref;
-
-		_this.ref.on('value', function (snapshot) {
-			var user = snapshot.val();
-
-			if (user == null) {
-				return;
-			}
-
-			if (user.online !== true || _this.online !== true) {
-				_this.online = true;
-				_this.ref.update({
-					online: true
-				});
-			}
-		});
-
-		_this.ref.onDisconnect().update({
-			online: false
-		});
-		return _this;
-	}
-
-	_createClass(User, [{
-		key: 'initRefConversations',
-		value: function initRefConversations() {
-			var _this2 = this;
-
-			var refConversation = this.ref.child('conversations');
-			var key = refConversation.push().key;
-
-			refConversation.orderByKey().startAt(key).on('child_added', function (snapshot) {
-				var conversation = snapshot.val();
-				_this2.conversations[key] = new _Conversation2.default(_this2, _this2.room.chats[conversation.chatId], conversation.lastSeen);
-			});
-		}
-	}, {
-		key: 'appendConversation',
-		value: function appendConversation(chatId) {
-			this.ref.child('conversations').push({ chatId: chatId, lastSeen: Date.now() });
-		}
-	}]);
-
-	return User;
-}(_events2.default);
-
-User.STATUS_VISIBLE = "visible";
-User.STATUS_INVISIBLE = "invisible";
-User.STATUS_AWAY = "away";
-exports.default = User;
-
-/***/ }),
-/* 6 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-Object.defineProperty(exports, "__esModule", {
-	value: true
-});
-
-var _events = __webpack_require__(0);
-
-var _events2 = _interopRequireDefault(_events);
-
-var _mozillaDeferred = __webpack_require__(1);
-
-var _mozillaDeferred2 = _interopRequireDefault(_mozillaDeferred);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-var Conversation = //ref conversation
-function Conversation(user, chat, lastSeen) {
-	_classCallCheck(this, Conversation);
-
-	this.user = user;
-	this.chat = chat;
-	this.lastSeen = lastSeen;
-	// chat.on('new_message', message => {});
-}
-
-// sendMessage(message){
-// 	this.chat.sendMessage();
-// }
-;
-
-exports.default = Conversation;
-
-/***/ }),
-/* 7 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
 Object.defineProperty(exports, "__esModule", {
 	value: true
 });
@@ -897,13 +443,11 @@ var Chat = function (_EventEmitter) {
 		_this.room = room;
 		_this.ref = ref;
 
-		_this.pendings = {};
-
 		_this.users = {};
 		_this.messages = {};
 
-		_this.initRefUser();
-		_this.initRefMessages();
+		// this.initRefUser();
+		// this.initRefMessages();
 		return _this;
 	}
 
@@ -916,15 +460,8 @@ var Chat = function (_EventEmitter) {
 
 			users.on('child_added', function (snapshot) {
 				var uid = snapshot.key;
-				var user = _this2.room.users[uid];
 
-				user.appendConversation(_this2.id);
-
-				_this2.users[uid] = snapshot.key;
-
-				_this2.pendings[uid].resolve(true);
-
-				delete _this2.pendings[uid];
+				_this2.emit('chat_user_join', uid);
 			});
 
 			users.on('child_removed', function (snapshot) {
@@ -932,9 +469,7 @@ var Chat = function (_EventEmitter) {
 
 				delete _this2.users[uid];
 
-				_this2.pendings[uid].resolve(true);
-
-				delete _this2.pendings[uid];
+				_this2.emit('chat_user_leave', uid);
 			});
 		}
 	}, {
@@ -942,41 +477,52 @@ var Chat = function (_EventEmitter) {
 		value: function initRefMessages() {
 			var _this3 = this;
 
-			var refMessages = this.ref.child('messages');
-			var key = refMessages.push().key;
-
-			refMessages.orderByKey().startAt(key).on('child_added', function (snapshot) {
+			this.ref.child('messages').on('child_added', function (snapshot) {
 				_this3.messages.push(snapshot.val());
-				// this.emit('new_message', message);
 			});
 		}
 	}, {
 		key: 'registerUser',
 		value: function registerUser(user) {
+			var _this4 = this;
+
 			var deferred = new _mozillaDeferred2.default();
+			var uid = user.id;
 
-			this.pendings[user.id] = deferred;
+			this.ref.child('users/' + uid).set(user.name).then(function () {
+				_this4.users[uid] = user.name;
+				user.appendConversation(_this4.id);
 
-			this.ref.child('users/' + user.id).set(user.name);
+				deferred.resolve(true);
+			});
 
 			return deferred.promise;
 		}
 	}, {
 		key: 'unregisterUser',
 		value: function unregisterUser(user) {
+			var _this5 = this;
+
 			var deferred = new _mozillaDeferred2.default();
+			var uid = user.id;
 
-			this.pendings[user.id] = deferred;
+			this.ref.child('users/' + uid).remove().then(function () {
+				user.removeConversation(_this5.id);
 
-			var key = this.users[user.id];
-
-			this.ref.child('users/' + key).remove();
+				deferred.resolve(true);
+			});
 
 			return deferred.promise;
 		}
 	}, {
 		key: 'sendMessage',
-		value: function sendMessage(user, message) {}
+		value: function sendMessage(user, message) {
+			this.ref.child('messages').push({
+				user: user.id,
+				message: message,
+				time: Date.now()
+			});
+		}
 	}]);
 
 	return Chat;
@@ -985,7 +531,22 @@ var Chat = function (_EventEmitter) {
 exports.default = Chat;
 
 /***/ }),
-/* 8 */
+/* 3 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var _FirebaseChat = __webpack_require__(4);
+
+var _FirebaseChat2 = _interopRequireDefault(_FirebaseChat);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+window.FirebaseChat = _FirebaseChat2.default;
+
+/***/ }),
+/* 4 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -997,29 +558,395 @@ Object.defineProperty(exports, "__esModule", {
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
+var _events = __webpack_require__(0);
+
+var _events2 = _interopRequireDefault(_events);
+
+var _mozillaDeferred = __webpack_require__(1);
+
+var _mozillaDeferred2 = _interopRequireDefault(_mozillaDeferred);
+
+var _Room = __webpack_require__(5);
+
+var _Room2 = _interopRequireDefault(_Room);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
-var Utils = exports.Utils = function () {
-	function Utils() {
-		_classCallCheck(this, Utils);
+var FirebaseChat = function () {
+	function FirebaseChat(database) {
+		_classCallCheck(this, FirebaseChat);
+
+		this.ref = database.ref('rooms');
 	}
 
-	_createClass(Utils, [{
-		key: "generateId",
-		value: function generateId(length) {
-			var text = "";
-			var possible = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-
-			for (var i = 0; i < length; i++) {
-				text += possible.charAt(Math.floor(Math.random() * possible.length));
-			}
-
-			return text;
+	_createClass(FirebaseChat, [{
+		key: 'createRoom',
+		value: function createRoom(name) {
+			return new _Room2.default(name, this.ref.child(name));
+		}
+	}, {
+		key: 'deleteRoom',
+		value: function deleteRoom(name) {
+			return this.ref.child(name).remove();
 		}
 	}]);
 
-	return Utils;
+	return FirebaseChat;
 }();
+
+exports.default = FirebaseChat;
+
+/***/ }),
+/* 5 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+	value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _events = __webpack_require__(0);
+
+var _events2 = _interopRequireDefault(_events);
+
+var _mozillaDeferred = __webpack_require__(1);
+
+var _mozillaDeferred2 = _interopRequireDefault(_mozillaDeferred);
+
+var _User = __webpack_require__(6);
+
+var _User2 = _interopRequireDefault(_User);
+
+var _Chat = __webpack_require__(2);
+
+var _Chat2 = _interopRequireDefault(_Chat);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var Room = function (_EventEmitter) {
+	_inherits(Room, _EventEmitter);
+
+	//ref room
+	function Room(name, ref) {
+		_classCallCheck(this, Room);
+
+		var _this = _possibleConstructorReturn(this, (Room.__proto__ || Object.getPrototypeOf(Room)).call(this));
+
+		_this.name = name;
+		_this.ref = ref;
+
+		_this.initRefUser();
+		_this.initRefChat();
+		return _this;
+	}
+
+	_createClass(Room, [{
+		key: 'initRefUser',
+		value: function initRefUser() {
+			var _this2 = this;
+
+			this.ref.child('users').on('child_added', function (snapshot) {
+				var uid = snapshot.key;
+				var user = new _User2.default(uid, snapshot.val(), _this2, _this2.ref.child('users/' + uid));
+
+				_this2.emit("user_enter", user);
+			});
+
+			this.ref.child('users').on('child_removed', function (snapshot) {
+				var uid = snapshot.key;
+
+				_this2.emit("user_leave", uid);
+			});
+		}
+	}, {
+		key: 'initRefChat',
+		value: function initRefChat() {
+			var _this3 = this;
+
+			this.ref.child('chats').on('child_added', function (snapshot) {
+				var id = snapshot.key;
+				var chat = new _Chat2.default(id, snapshot.val(), _this3, _this3.ref.child('child/' + id));
+
+				_this3.emit("chat_create", chat);
+			});
+
+			this.ref.child('chats').on('child_removed', function (snapshot) {
+				var id = snapshot.key;
+
+				_this3.emit("chat_remove", id);
+			});
+		}
+	}, {
+		key: 'registerUser',
+		value: function registerUser(uid, name) {
+			var _this4 = this;
+
+			var status = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 'visible';
+
+
+			var deferred = new _mozillaDeferred2.default();
+
+			var ref = this.ref.child('users/' + uid);
+
+			ref.once('value', function (snapshot) {
+				var data = {
+					uid: uid,
+					name: name,
+					online: true,
+					status: status
+				};
+
+				if (snapshot.hasChildren()) {
+					data = snapshot.val();
+				} else {
+					ref.set(data);
+				}
+
+				var user = new _User2.default(uid, data, _this4, ref);
+
+				deferred.resolve(user);
+			});
+
+			return deferred.promise;
+		}
+	}, {
+		key: 'getUsers',
+		value: function getUsers() {
+			var _this5 = this;
+
+			var deferred = new _mozillaDeferred2.default();
+
+			this.ref.child('users').once('value', function (snapshot) {
+				if (!snapshot.hasChildren()) {
+					deferred.resolve([]);
+				}
+
+				var users = Object.values(snapshot.val()).map(function (data) {
+					var uid = data.uid;
+
+					var ref = snapshot.ref.child(uid);
+
+					return new _User2.default(uid, data, _this5, ref);
+				});
+
+				deferred.resolve(users);
+			});
+
+			return deferred.promise;
+		}
+	}, {
+		key: 'unregisterUser',
+		value: function unregisterUser(uid) {
+			return this.ref.child('users/' + uid).remove();
+		}
+	}, {
+		key: 'createChat',
+		value: function createChat(id) {
+			var ref = this.ref.child('chats');
+			id = id || ref.push().key;
+
+			return new _Chat2.default(id, this, ref.child(id));
+		}
+	}, {
+		key: 'deleteChat',
+		value: function deleteChat(id) {
+			return this.ref.child('chats/' + id).remove();
+		}
+	}]);
+
+	return Room;
+}(_events2.default);
+
+exports.default = Room;
+
+/***/ }),
+/* 6 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+	value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _events = __webpack_require__(0);
+
+var _events2 = _interopRequireDefault(_events);
+
+var _mozillaDeferred = __webpack_require__(1);
+
+var _mozillaDeferred2 = _interopRequireDefault(_mozillaDeferred);
+
+var _Chat = __webpack_require__(2);
+
+var _Chat2 = _interopRequireDefault(_Chat);
+
+var _Conversation = __webpack_require__(7);
+
+var _Conversation2 = _interopRequireDefault(_Conversation);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var User = function (_EventEmitter) {
+	_inherits(User, _EventEmitter);
+
+	function User(id, user, room, ref) {
+		_classCallCheck(this, User);
+
+		var _this = _possibleConstructorReturn(this, (User.__proto__ || Object.getPrototypeOf(User)).call(this));
+
+		_this.id = id;
+		_this.name = user.name;
+		_this.online = user.online;
+		_this.status = user.status;
+		_this.room = room;
+		_this.conversations = {};
+
+		if (typeof user.conversations != 'undefined') {
+			Object.values(user.conversations).map(function (conversation) {
+				var idChat = conversation.idChat;
+				var chat = new _Chat2.default(idChat, _this.room, _this.room.ref.child('chats/' + idChat));
+
+				_this.conversations[idChat] = new _Conversation2.default(_this, chat, conversation.lastSeen);
+			});
+		}
+
+		_this.ref = ref;
+
+		_this.ref.on('value', function (snapshot) {
+			var user = snapshot.val();
+
+			if (user == null) {
+				return;
+			}
+
+			if (user.online !== true || _this.online !== true) {
+				_this.online = true;
+				_this.ref.update({
+					online: true
+				});
+			}
+		});
+
+		_this.ref.onDisconnect().update({
+			online: false
+		});
+
+		_this.initRefConversations();
+		return _this;
+	}
+
+	_createClass(User, [{
+		key: 'initRefConversations',
+		value: function initRefConversations() {
+			var _this2 = this;
+
+			this.ref.child('conversations').on('child_added', function (snapshot) {
+				var conversation = snapshot.val();
+				var idChat = conversation.idChat;
+				var chat = new _Chat2.default(idChat, _this2.room, _this2.room.ref.child('chats/' + idChat));
+
+				_this2.conversations[idChat] = new _Conversation2.default(_this2, chat, conversation.lastSeen);
+
+				_this2.emit('conversation_create', _this2.conversations[idChat]);
+			});
+
+			this.ref.child('conversations').on('child_removed', function (snapshot) {
+				var key = snapshot.key;
+
+				delete _this2.conversations[key];
+
+				_this2.emit('conversation_remove', key);
+			});
+		}
+	}, {
+		key: 'appendConversation',
+		value: function appendConversation(idChat) {
+			return this.ref.child('conversations/' + idChat).set({ idChat: idChat, lastSeen: Date.now() });
+		}
+	}, {
+		key: 'removeConversation',
+		value: function removeConversation(idChat) {
+			return this.ref.child('conversations/' + idChat).remove();
+		}
+	}]);
+
+	return User;
+}(_events2.default);
+
+User.STATUS_VISIBLE = "visible";
+User.STATUS_INVISIBLE = "invisible";
+User.STATUS_AWAY = "away";
+exports.default = User;
+
+/***/ }),
+/* 7 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+	value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _events = __webpack_require__(0);
+
+var _events2 = _interopRequireDefault(_events);
+
+var _mozillaDeferred = __webpack_require__(1);
+
+var _mozillaDeferred2 = _interopRequireDefault(_mozillaDeferred);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var Conversation = function () {
+	//ref conversation
+	function Conversation(user, chat, lastSeen) {
+		_classCallCheck(this, Conversation);
+
+		this.user = user;
+		this.chat = chat;
+		this.lastSeen = lastSeen;
+		// chat.on('new_message', message => {});
+	}
+
+	_createClass(Conversation, [{
+		key: 'sendMessage',
+		value: function sendMessage(message) {
+			this.chat.sendMessage(this.user.id, message);
+		}
+	}]);
+
+	return Conversation;
+}();
+
+exports.default = Conversation;
 
 /***/ })
 /******/ ]);

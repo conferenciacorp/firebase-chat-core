@@ -9,13 +9,6 @@ export default class Room extends EventEmitter{ //ref room
 
 		this.name = name;
 		this.ref = ref;
-		this.users = {};
-		this.chats = {};
-
-		this.pendings = {
-			users: {},
-			chats: {}
-		};
 
 		this.initRefUser();
 		this.initRefChat();
@@ -23,110 +16,95 @@ export default class Room extends EventEmitter{ //ref room
 
 	initRefUser(){
 		this.ref.child('users').on('child_added', snapshot => {
-			let uid = snapshot.key;
+			const uid = snapshot.key;
+			const user = new User(uid, snapshot.val(), this, this.ref.child('users/'+uid));
 
-			this.users[uid] = new User(uid, snapshot.val(), this, this.ref.child('users/'+uid));
-
-			if(typeof this.pendings.users[uid] != 'undefined'){
-				this.pendings.users[uid].resolve(this.users[uid]);
-				delete this.pendings.users[uid];
-			}
+			this.emit("user_enter", user);
 		});
 
 		this.ref.child('users').on('child_removed', snapshot => {
 			let uid = snapshot.key;
 
-			delete this.users[uid];
-
-			if(typeof this.pendings.users[uid] != 'undefined'){
-				this.pendings.users[uid].resolve();
-				delete this.pendings.users[uid];
-			}
+			this.emit("user_leave", uid);
 		});
 	}
 
 	initRefChat(){
 		this.ref.child('chats').on('child_added', snapshot => {
-			let id = snapshot.key;
+			const id = snapshot.key;
+			const chat = new Chat(id, snapshot.val(), this, this.ref.child('child/'+id));
 
-			this.chats[id] = new Chat(id, this, this.ref.child('child/'+id));
-
-			if(typeof this.pendings.chats[id] != 'undefined'){
-				this.pendings.chats[id].resolve(this.chats[id]);
-				delete this.pendings.chats[id];
-			}
+			this.emit("chat_create", chat);
 		});
 
 		this.ref.child('chats').on('child_removed', snapshot => {
-			let id = snapshot.key;
+			const id = snapshot.key;
 
-			delete this.chats[id];
-
-			if(typeof this.pendings.chats[id] != 'undefined'){
-				this.pendings.chats[id].resolve();
-				delete this.pendings.chats[id];
-			}
+			this.emit("chat_remove", id)
 		});
 	}
 
-	registerUser(uid, name){
-		if(typeof this.users[uid] != 'undefined'){
-			return new Promise((resolve, reject) => resolve(this.users[uid]));
-		}
+	registerUser(uid, name, status = 'visible'){
 
-		let deferred = new Deferred();
+		const deferred = new Deferred();
 
-		this.pendings.users[uid] = deferred;
+		const ref = this.ref.child('users/'+uid);
 
-		this.ref.child('users/'+uid).set({
-			name: name,
-			online: true,
-			status: 'visible',
-			conversations: []
+		ref.once('value', snapshot => {
+			let data = {
+				uid: uid,
+				name: name,
+				online: true,
+				status: status
+			};
+
+			if(snapshot.hasChildren()){
+				data = snapshot.val();
+			}else{
+				ref.set(data);
+			}
+
+			const user = new User(uid, data, this, ref);
+
+			deferred.resolve(user);
+		});
+
+		return deferred.promise;
+	}
+
+	getUsers(){
+		const deferred = new Deferred();
+
+		this.ref.child('users').once('value', snapshot => {
+			if(!snapshot.hasChildren()){
+				deferred.resolve([]);
+			}
+
+			const users = Object.values(snapshot.val()).map(data => {
+				const { uid } = data;
+				const ref = snapshot.ref.child(uid);
+
+				return new User(uid, data, this, ref);
+			});
+
+			deferred.resolve(users);
 		});
 
 		return deferred.promise;
 	}
 
 	unregisterUser(uid){
-		if(typeof this.users[uid] == 'undefined'){
-			return new Promise((resolve, reject) => resolve());
-		}
-
-		let deferred = new Deferred();
-
-		this.pendings.users[uid] = deferred;
-
-		this.ref.child('users/'+uid).remove();
-
-		return deferred.promise;
+		return this.ref.child('users/'+uid).remove();
 	}
 
 	createChat(id){
 		const ref = this.ref.child('chats');
 		id = id || ref.push().key;
 
-		console.log(id);
-
-		if(typeof this.chats[id] == 'undefined'){
-			this.chats[id] = new Chat(id, this, ref.child(id));
-		}
-
-		return this.chats[id];
-
+		return new Chat(id, this, ref.child(id));
 	}
 
 	deleteChat(id){
-		if(typeof this.chats[id] == 'undefined'){
-			return new Promise((resolve, reject) => resolve());
-		}
-
-		let deferred = new Deferred();
-
-		this.pendings.chats[id] = deferred;
-
-		this.ref.child('chats/'+id).remove();
-
-		return deferred.promise;
+		return this.ref.child('chats/'+id).remove();
 	}
 }
