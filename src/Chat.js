@@ -32,7 +32,9 @@ export default class Chat extends EventEmitter{
 	}
 
 	initRefMessages(){
-		this.ref.child('messages').on('child_added', snapshot => {
+		const ref = this.ref.child('messages');
+		const key = ref.push().key;
+		ref.orderByKey().startAt(key).on('child_added', snapshot => {
 			this.emit('new_message', snapshot.val());
 		});
 	}

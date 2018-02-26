@@ -29,6 +29,7 @@
 				window.room = room;
 
 				room.registerUser(uid, "Marcelo").then(user => {
+					room.connectAs(user, firebase.auth());
 					window.user = user;
 				});
 
@@ -41,6 +42,9 @@
 					user.on('status_change', console.log);
 					user.on('online_change', console.log);
 					users.push(user);
+				});
+				room.on('user_online_enter', (user) => {
+					console.log("user_online_enter", user);
 				});
 
 			}).catch(function(error) {

@@ -13,23 +13,22 @@ export default class User extends EventEmitter{
 
 		this.id = id;
 		this.name = user.name;
-		this.online = user.online;
 		this.status = user.status;
+		this.connection = user.connection;
 		this.room = room;
 
 		this.ref = ref;
 
 		this.ref.on('value', snapshot => {
-			let user = snapshot.val();
-			console.log(user);
-			if(user.status != this.status){
-				this.status = user.status;
-				this.emit("status_change", user.status);
+			const data = snapshot.val();
+
+			if(data === null){
+				return;
 			}
 
-			if(user.online != this.online){
-				this.online = user.online;
-				this.emit("online_change", user.online);
+			if(data.status != this.status){
+				this.status = data.status;
+				this.emit("status_change", data.status);
 			}
 		});
 
@@ -81,22 +80,5 @@ export default class User extends EventEmitter{
 
 	removeConversation(idChat){
 		return this.ref.child('conversations/'+idChat).remove();
-	}
-
-	thisIsMe(){
-		this.ref.on('value', snapshot => {
-			let user = snapshot.val();
-
-			if(user.online !== true || this.online !== true){
-				this.online = true;
-				this.ref.update({
-					online: true
-				});
-			}
-		});
-
-		this.ref.onDisconnect().update({
-			online: false
-		});
 	}
 }

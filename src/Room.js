@@ -11,22 +11,41 @@ export default class Room extends EventEmitter{ //ref room
 		this.ref = ref;
 
 		this.initRefUser();
+		this.initRefOnline();
 		this.initRefChat();
 	}
 
 	initRefUser(){
 		const refUsers = this.ref.child('users');
-		refUsers.on('child_added', snapshot => {
-			const uid = snapshot.key;
+		const key = refUsers.push().key;
+		const queryUsers = refUsers.orderByKey().startAt(key);
+
+		queryUsers.on('child_added', snapshot => {
+			const uid = snapshot.val().uid;
 			const user = new User(uid, snapshot.val(), this, this.ref.child('users/'+uid));
 
 			this.emit("user_enter", user);
 		});
 
-		refUsers.on('child_removed', snapshot => {
-			let uid = snapshot.key;
+		queryUsers.on('child_removed', snapshot => {
+			const uid = snapshot.val().uid;
 
 			this.emit("user_leave", uid);
+		});
+	}
+
+	initRefOnline(){
+		const refOnline = this.ref.child('online');
+		refOnline.on('child_added', snapshot => {
+			const connection = snapshot.key;
+
+			this.emit("user_online_enter", connection);
+		});
+
+		refOnline.on('child_removed', snapshot => {
+			const connection = snapshot.key;
+
+			this.emit("user_online_leave", connection);
 		});
 	}
 
@@ -49,29 +68,61 @@ export default class Room extends EventEmitter{ //ref room
 
 		const deferred = new Deferred();
 
-		const ref = this.ref.child('users/'+uid);
+		const refUsers = this.ref.child('users');
 
-		ref.once('value', snapshot => {
+		refUsers.orderByChild("uid").equalTo(uid).once('value', snapshot => {
+			let ref;
 			let data = {
 				uid: uid,
 				name: name,
-				online: true,
 				status: status
 			};
 
 			if(snapshot.hasChildren()){
-				data = snapshot.val();
+				const key = Object.keys(snapshot.val())[0];
+
+				ref = snapshot.ref.child(key);
+				data = Object.values(snapshot.val())[0];
 			}else{
+				ref = refUsers.push();
 				ref.set(data);
 			}
 
 			const user = new User(uid, data, this, ref);
-			user.thisIsMe();
 
 			deferred.resolve(user);
 		});
 
 		return deferred.promise;
+	}
+
+	connectAs(user, auth){
+		const refOnline = this.ref.child('online');
+		const refAuth = user.ref.child('auth');
+
+		const connectionUid = auth.getUid();
+
+		if(!user.connection){
+			user.connection = refOnline.push().key;
+		}
+
+		user.ref.update({
+			connection : user.connection
+		});
+
+		const refAuthChild = refAuth.push();
+
+		refAuthChild.set(connectionUid);
+		refAuthChild.onDisconnect().remove();
+
+		const refOnlineChild = refOnline.child(user.connection).push;
+
+		const uniqueId = Math.random().toString(36).substr(2, 10);
+
+		refOnlineChild.set(uniqueId);
+		refOnlineChild.onDisconnect().remove();
+
+		user.ref.child('connection').onDisconnect().remove();
 	}
 
 	getUsers(){

@@ -476,7 +476,9 @@ var Chat = function (_EventEmitter) {
 		value: function initRefMessages() {
 			var _this3 = this;
 
-			this.ref.child('messages').on('child_added', function (snapshot) {
+			var ref = this.ref.child('messages');
+			var key = ref.push().key;
+			ref.orderByKey().startAt(key).on('child_added', function (snapshot) {
 				_this3.emit('new_message', snapshot.val());
 			});
 		}
@@ -681,6 +683,7 @@ var Room = function (_EventEmitter) {
 		_this.ref = ref;
 
 		_this.initRefUser();
+		_this.initRefOnline();
 		_this.initRefChat();
 		return _this;
 	}
@@ -691,65 +694,89 @@ var Room = function (_EventEmitter) {
 			var _this2 = this;
 
 			var refUsers = this.ref.child('users');
-			refUsers.on('child_added', function (snapshot) {
-				var uid = snapshot.key;
+			var key = refUsers.push().key;
+			var queryUsers = refUsers.orderByKey().startAt(key);
+
+			queryUsers.on('child_added', function (snapshot) {
+				var uid = snapshot.val().uid;
 				var user = new _User2.default(uid, snapshot.val(), _this2, _this2.ref.child('users/' + uid));
 
 				_this2.emit("user_enter", user);
 			});
 
-			refUsers.on('child_removed', function (snapshot) {
-				var uid = snapshot.key;
+			queryUsers.on('child_removed', function (snapshot) {
+				var uid = snapshot.val().uid;
 
 				_this2.emit("user_leave", uid);
 			});
 		}
 	}, {
+		key: 'initRefOnline',
+		value: function initRefOnline() {
+			var _this3 = this;
+
+			var refOnline = this.ref.child('online');
+			refOnline.on('child_added', function (snapshot) {
+				var connection = snapshot.key;
+
+				_this3.emit("user_online_enter", connection);
+			});
+
+			refOnline.on('child_removed', function (snapshot) {
+				var connection = snapshot.key;
+
+				_this3.emit("user_online_leave", connection);
+			});
+		}
+	}, {
 		key: 'initRefChat',
 		value: function initRefChat() {
-			var _this3 = this;
+			var _this4 = this;
 
 			this.ref.child('chats').on('child_added', function (snapshot) {
 				var id = snapshot.key;
-				var chat = new _Chat2.default(id, snapshot.val(), _this3, _this3.ref.child('chats/' + id));
+				var chat = new _Chat2.default(id, snapshot.val(), _this4, _this4.ref.child('chats/' + id));
 
-				_this3.emit("chat_create", chat);
+				_this4.emit("chat_create", chat);
 			});
 
 			this.ref.child('chats').on('child_removed', function (snapshot) {
 				var id = snapshot.key;
 
-				_this3.emit("chat_remove", id);
+				_this4.emit("chat_remove", id);
 			});
 		}
 	}, {
 		key: 'registerUser',
 		value: function registerUser(uid, name) {
-			var _this4 = this;
+			var _this5 = this;
 
 			var status = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 'visible';
 
 
 			var deferred = new _mozillaDeferred2.default();
 
-			var ref = this.ref.child('users/' + uid);
+			var refUsers = this.ref.child('users');
 
-			ref.once('value', function (snapshot) {
+			refUsers.orderByChild("uid").equalTo(uid).once('value', function (snapshot) {
+				var ref = void 0;
 				var data = {
 					uid: uid,
 					name: name,
-					online: true,
 					status: status
 				};
 
 				if (snapshot.hasChildren()) {
-					data = snapshot.val();
+					var key = Object.keys(snapshot.val())[0];
+
+					ref = snapshot.ref.child(key);
+					data = Object.values(snapshot.val())[0];
 				} else {
+					ref = refUsers.push();
 					ref.set(data);
 				}
 
-				var user = new _User2.default(uid, data, _this4, ref);
-				user.thisIsMe();
+				var user = new _User2.default(uid, data, _this5, ref);
 
 				deferred.resolve(user);
 			});
@@ -757,9 +784,40 @@ var Room = function (_EventEmitter) {
 			return deferred.promise;
 		}
 	}, {
+		key: 'connectAs',
+		value: function connectAs(user, auth) {
+			var refOnline = this.ref.child('online');
+			var refAuth = user.ref.child('auth');
+
+			var connectionUid = auth.getUid();
+
+			if (!user.connection) {
+				user.connection = refOnline.push().key;
+			}
+
+			user.ref.update({
+				connection: user.connection
+			});
+
+			var authKey = refAuth.push().key;
+
+			refAuth.child(authKey).set(connectionUid);
+			refAuth.child(authKey).onDisconnect().remove();
+
+			var refOnlineChild = refOnline.child(user.connection);
+
+			var uniqueKey = refOnlineChild.push().key;
+			var uniqueId = Math.random().toString(36).substr(2, 10);
+
+			refOnlineChild.child(uniqueKey).set(uniqueId);
+			refOnlineChild.child(uniqueKey).onDisconnect().remove();
+
+			user.ref.child('connection').onDisconnect().remove();
+		}
+	}, {
 		key: 'getUsers',
 		value: function getUsers() {
-			var _this5 = this;
+			var _this6 = this;
 
 			var deferred = new _mozillaDeferred2.default();
 
@@ -773,7 +831,7 @@ var Room = function (_EventEmitter) {
 
 					var ref = snapshot.ref.child(uid);
 
-					return new _User2.default(uid, data, _this5, ref);
+					return new _User2.default(uid, data, _this6, ref);
 				});
 
 				deferred.resolve(users);
@@ -853,23 +911,22 @@ var User = function (_EventEmitter) {
 
 		_this.id = id;
 		_this.name = user.name;
-		_this.online = user.online;
 		_this.status = user.status;
+		_this.connection = user.connection;
 		_this.room = room;
 
 		_this.ref = ref;
 
 		_this.ref.on('value', function (snapshot) {
-			var user = snapshot.val();
-			console.log(user);
-			if (user.status != _this.status) {
-				_this.status = user.status;
-				_this.emit("status_change", user.status);
+			var data = snapshot.val();
+
+			if (data === null) {
+				return;
 			}
 
-			if (user.online != _this.online) {
-				_this.online = user.online;
-				_this.emit("online_change", user.online);
+			if (data.status != _this.status) {
+				_this.status = data.status;
+				_this.emit("status_change", data.status);
 			}
 		});
 
@@ -931,26 +988,6 @@ var User = function (_EventEmitter) {
 		key: 'removeConversation',
 		value: function removeConversation(idChat) {
 			return this.ref.child('conversations/' + idChat).remove();
-		}
-	}, {
-		key: 'thisIsMe',
-		value: function thisIsMe() {
-			var _this4 = this;
-
-			this.ref.on('value', function (snapshot) {
-				var user = snapshot.val();
-
-				if (user.online !== true || _this4.online !== true) {
-					_this4.online = true;
-					_this4.ref.update({
-						online: true
-					});
-				}
-			});
-
-			this.ref.onDisconnect().update({
-				online: false
-			});
 		}
 	}]);
 
