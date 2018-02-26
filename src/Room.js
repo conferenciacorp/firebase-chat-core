@@ -146,8 +146,8 @@ export default class Room extends EventEmitter{ //ref room
 		return deferred.promise;
 	}
 
-	unregisterUser(uid){
-		return this.ref.child('users/'+uid).remove();
+	unregisterUser(user){
+		return this.ref.child('users').orderByChild("uid").equalTo(user.uid).remove();
 	}
 
 	createChat(id){

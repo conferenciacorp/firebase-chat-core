@@ -799,18 +799,17 @@ var Room = function (_EventEmitter) {
 				connection: user.connection
 			});
 
-			var authKey = refAuth.push().key;
+			var refAuthChild = refAuth.push();
 
-			refAuth.child(authKey).set(connectionUid);
-			refAuth.child(authKey).onDisconnect().remove();
+			refAuthChild.set(connectionUid);
+			refAuthChild.onDisconnect().remove();
 
-			var refOnlineChild = refOnline.child(user.connection);
+			var refOnlineChild = refOnline.child(user.connection).push;
 
-			var uniqueKey = refOnlineChild.push().key;
 			var uniqueId = Math.random().toString(36).substr(2, 10);
 
-			refOnlineChild.child(uniqueKey).set(uniqueId);
-			refOnlineChild.child(uniqueKey).onDisconnect().remove();
+			refOnlineChild.set(uniqueId);
+			refOnlineChild.onDisconnect().remove();
 
 			user.ref.child('connection').onDisconnect().remove();
 		}
@@ -841,8 +840,8 @@ var Room = function (_EventEmitter) {
 		}
 	}, {
 		key: 'unregisterUser',
-		value: function unregisterUser(uid) {
-			return this.ref.child('users/' + uid).remove();
+		value: function unregisterUser(user) {
+			return this.ref.child('users').orderByChild("uid").equalTo(user.uid).remove();
 		}
 	}, {
 		key: 'createChat',
