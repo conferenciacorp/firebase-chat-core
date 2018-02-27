@@ -2,6 +2,7 @@ import EventEmitter from 'events';
 import Deferred from 'mozilla-deferred';
 import User from './User';
 import Chat from './Chat';
+import Prototypes from './Prototypes';
 
 export default class Room extends EventEmitter{ //ref room
 	constructor(name, ref){
@@ -17,78 +18,101 @@ export default class Room extends EventEmitter{ //ref room
 
 	initRefUser(){
 		const refUsers = this.ref.child('users');
-		const key = refUsers.push().key;
-		const queryUsers = refUsers.orderByKey().startAt(key);
+		const refNewUsers = refUsers.orderByChild("createdAt").startAt(Date.now());
 
-		queryUsers.on('child_added', snapshot => {
-			const uid = snapshot.val().uid;
-			const user = new User(uid, snapshot.val(), this, this.ref.child('users/'+uid));
+		refNewUsers.on('child_added', snapshot => {
+			const id = snapshot.key;
 
-			this.emit("user_enter", user);
+			const user = new User(id, snapshot.val(), this, snapshot.ref);
+
+			this.emit("user_registered", user);
 		});
 
-		queryUsers.on('child_removed', snapshot => {
-			const uid = snapshot.val().uid;
+		refNewUsers.on('child_removed', snapshot => {
+			const id = snapshot.key;
 
-			this.emit("user_leave", uid);
+			this.emit("user_removed", id);
 		});
 	}
 
 	initRefOnline(){
 		const refOnline = this.ref.child('online');
-		refOnline.on('child_added', snapshot => {
+		const key = refOnline.push().key;
+		const refNewOnline = refOnline.orderByKey().startAt(key);
+
+		refNewOnline.on('child_added', snapshot => {
 			const connection = snapshot.key;
 
-			this.emit("user_online_enter", connection);
+			this.emit("user_joined", connection);
 		});
 
-		refOnline.on('child_removed', snapshot => {
+		refNewOnline.on('child_removed', snapshot => {
 			const connection = snapshot.key;
 
-			this.emit("user_online_leave", connection);
+			this.emit("user_leaved", connection);
 		});
 	}
 
 	initRefChat(){
-		this.ref.child('chats').on('child_added', snapshot => {
-			const id = snapshot.key;
-			const chat = new Chat(id, snapshot.val(), this, this.ref.child('chats/'+id));
+		const refChat = this.ref.child('chats');
+		const refNewChats = refChat.orderByChild("createdAt").startAt(Date.now());
 
-			this.emit("chat_create", chat);
+		refNewChats.on('child_added', snapshot => {
+			const id = snapshot.key;
+			const chat = new Chat(id, snapshot.val(), snapshot.ref);
+
+			this.emit("chat_created", chat);
 		});
 
-		this.ref.child('chats').on('child_removed', snapshot => {
+		refNewChats.on('child_removed', snapshot => {
 			const id = snapshot.key;
 
-			this.emit("chat_remove", id)
+			this.emit("chat_removed", id)
 		});
 	}
 
-	registerUser(uid, name, status = 'visible'){
+	getUsers(){
+		const deferred = new Deferred();
+
+		this.ref.child('users').once('value', snapshot => {
+			if(!snapshot.hasChildren()){
+				deferred.resolve([]);
+			}
+
+			const users = [];
+
+			snapshot.forEach(childSnapshot => {
+				const id = childSnapshot.key;
+				const data = childSnapshot.val();
+				const ref = childSnapshot.ref;
+
+				users.push(new User(id, data, this, ref));
+			});
+
+			deferred.resolve(users);
+		});
+
+		return deferred.promise;
+	}
+
+	registerUser(id, name, status = 'visible'){
 
 		const deferred = new Deferred();
 
-		const refUsers = this.ref.child('users');
-
-		refUsers.orderByChild("uid").equalTo(uid).once('value', snapshot => {
-			let ref;
+		this.ref.child('users/'+id).once('value', snapshot => {
 			let data = {
-				uid: uid,
 				name: name,
-				status: status
+				status: status,
+				createdAt: Date.now()
 			};
 
 			if(snapshot.hasChildren()){
-				const key = Object.keys(snapshot.val())[0];
-
-				ref = snapshot.ref.child(key);
-				data = Object.values(snapshot.val())[0];
+				data = snapshot.val();
 			}else{
-				ref = refUsers.push();
-				ref.set(data);
+				snapshot.ref.set(data);
 			}
 
-			const user = new User(uid, data, this, ref);
+			const user = new User(id, data, this, snapshot.ref);
 
 			deferred.resolve(user);
 		});
@@ -96,11 +120,15 @@ export default class Room extends EventEmitter{ //ref room
 		return deferred.promise;
 	}
 
+	unregisterUser(user){
+		return this.ref.child('users/'+user.id).remove();
+	}
+
 	connectAs(user, auth){
 		const refOnline = this.ref.child('online');
 		const refAuth = user.ref.child('auth');
 
-		const connectionUid = auth.getUid();
+		const connectionid = auth.getUid();
 
 		if(!user.connection){
 			user.connection = refOnline.push().key;
@@ -112,42 +140,45 @@ export default class Room extends EventEmitter{ //ref room
 
 		const refAuthChild = refAuth.push();
 
-		refAuthChild.set(connectionUid);
+		refAuthChild.set(connectionid);
 		refAuthChild.onDisconnect().remove();
 
-		const refOnlineChild = refOnline.child(user.connection).push;
+		const refOnlineChild = refOnline.child(user.connection).push();
 
-		const uniqueId = Math.random().toString(36).substr(2, 10);
-
-		refOnlineChild.set(uniqueId);
+		refOnlineChild.set(user.id);
 		refOnlineChild.onDisconnect().remove();
 
-		user.ref.child('connection').onDisconnect().remove();
+		const userConnectionRef = user.ref.child('connection');
+
+		userConnectionRef.on('value', snapshot => {
+			if(snapshot.val() !== null){
+				return;
+			}
+
+			snapshot.ref.set(user.connection);
+		});
+
+		userConnectionRef.onDisconnect().remove();
 	}
 
-	getUsers(){
+	getChats(){
 		const deferred = new Deferred();
 
-		this.ref.child('users').once('value', snapshot => {
+		this.ref.child('chats').once('value', snapshot => {
 			if(!snapshot.hasChildren()){
 				deferred.resolve([]);
 			}
 
-			const users = Object.values(snapshot.val()).map(data => {
-				const { uid } = data;
-				const ref = snapshot.ref.child(uid);
+			const chats = [];
 
-				return new User(uid, data, this, ref);
+			snapshot.forEach(snapshot => {
+				chats.push(new Chat(snapshot.key, this, snapshot.ref));
 			});
 
 			deferred.resolve(users);
 		});
 
 		return deferred.promise;
-	}
-
-	unregisterUser(user){
-		return this.ref.child('users').orderByChild("uid").equalTo(user.uid).remove();
 	}
 
 	createChat(id){
@@ -157,7 +188,7 @@ export default class Room extends EventEmitter{ //ref room
 		return new Chat(id, this, ref.child(id));
 	}
 
-	deleteChat(id){
-		return this.ref.child('chats/'+id).remove();
+	deleteChat(chat){
+		return this.ref.child('chats/'+chat.id).remove();
 	}
 }

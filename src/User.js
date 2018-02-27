@@ -35,6 +35,28 @@ export default class User extends EventEmitter{
 		this.initRefConversations();
 	}
 
+	initRefConversations(){
+		const refConversations = this.ref.child('conversations');
+		const refNewConversations = refConversations.orderByChild("createdAt").startAt(Date.now());
+
+		refNewConversations.on('child_added', snapshot => {
+			const data = snapshot.val();
+
+			const idChat = data.idChat;
+			const chat = new Chat(idChat, this.room, this.room.ref.child('chats/'+idChat));
+
+			const conversation = new Conversation(this, chat, data.lastSeen, snapshot.ref);
+
+			this.emit('conversation_created', conversation);
+		});
+
+		refNewConversations.on('child_removed', snapshot => {
+			let key = snapshot.key;
+
+			this.emit('conversation_removed', key);
+		});
+	}
+
 	getConversations(){
 		const deferred = new Deferred();
 
@@ -43,11 +65,14 @@ export default class User extends EventEmitter{
 				deferred.resolve([]);
 			}
 
-			const conversations = Object.values(snapshot.val()).map(data => {
+			let conversations = [];
+			snapshot.forEach(childSnapshot => {
+				const data = childSnapshot.val();
+
 				const idChat = data.idChat;
 				const chat = new Chat(idChat, this.room, this.room.ref.child('chats/'+idChat));
 
-				return new Conversation(this, chat, data.lastSeen);
+				conversations.push(new Conversation(this, chat, data.lastSeen, childSnapshot.ref));
 			});
 
 			deferred.resolve(conversations);
@@ -56,29 +81,31 @@ export default class User extends EventEmitter{
 		return deferred.promise;
 	}
 
-	initRefConversations(){
-		this.ref.child('conversations').on('child_added', snapshot => {
-			const data = snapshot.val();
-			const idChat = data.idChat;
-			const chat = new Chat(idChat, this.room, this.room.ref.child('chats/'+idChat));
+	appendConversation(chat){
+		const deferred = new Deferred();
 
-			const conversation = new Conversation(this, chat, data.lastSeen);
+		this.ref.child('conversations/'+chat.id).on('value', snapshot => {
+			let data = {
+				idChat: chat.id,
+				lastSeen: Date.now(),
+				createdAt: Date.now()
+			};
 
-			this.emit('conversation_create', conversation);
+			if(snapshot.hasChildren()){
+				data = snapshot.val();
+			}else{
+				snapshot.ref.set(data);
+			}
+
+			const conversation = new Conversation(this, chat, data.lastSeen, snapshot.ref);
+
+			deferred.resolve(conversation);
 		});
 
-		this.ref.child('conversations').on('child_removed', snapshot => {
-			let key = snapshot.key;
-
-			this.emit('conversation_remove', key);
-		});
+		return deferred.promise;
 	}
 
-	appendConversation(idChat){
-		return this.ref.child('conversations/'+idChat).set({idChat: idChat, lastSeen: Date.now()});
-	}
-
-	removeConversation(idChat){
-		return this.ref.child('conversations/'+idChat).remove();
+	removeConversation(chat){
+		return this.ref.child('conversations/'+chat.id).remove();
 	}
 }

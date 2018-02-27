@@ -19,11 +19,9 @@
 
 
 			firebase.auth().signInAnonymously().then(({ uid }) => {
-				// room.getUsers().then(users => {
-				// 	users = users;
-				// });
 
 				var firebaseChat = new FirebaseChat(firebase.database());
+				window.firebaseChat = firebaseChat;
 
 				var room = firebaseChat.createRoom(1042);
 				window.room = room;
@@ -33,18 +31,16 @@
 					window.user = user;
 				});
 
-				var users = [];
-				window.users = users;
-
-
-				room.on('user_enter', (user) => {
-					console.log("user_enter", user);
-					user.on('status_change', console.log);
-					user.on('online_change', console.log);
-					users.push(user);
+				room.getUsers().then(users => {
+					window.users = users;
 				});
-				room.on('user_online_enter', (user) => {
-					console.log("user_online_enter", user);
+
+				room.on('user_registered', (user) => {
+					console.log("user_registered", user);
+					user.on('status_change', console.log);
+				});
+				room.on('user_joined', (user) => {
+					console.log("user_joined", user);
 				});
 
 			}).catch(function(error) {

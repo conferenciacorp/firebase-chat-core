@@ -16,25 +16,27 @@ export default class Chat extends EventEmitter{
 	}
 
 	initRefUser(){
-		const users = this.ref.child('users');
+		const refUsers = this.ref.child('users');
+		const refNewUsers = refUsers.orderByChild("insertedAt").startAt(Date.now());
 
-		users.on('child_added', snapshot => {
-			const uid = snapshot.key;
+		refNewUsers.on('child_added', snapshot => {
+			const id = snapshot.key;
 
-			this.emit('user_join', uid);
+			this.emit('user_joined', id);
 		});
 
-		users.on('child_removed', snapshot => {
-			const uid = snapshot.key;
+		refNewUsers.on('child_removed', snapshot => {
+			const id = snapshot.key;
 
-			this.emit('user_leave', uid);
+			this.emit('user_leaved', id);
 		});
 	}
 
 	initRefMessages(){
-		const ref = this.ref.child('messages');
-		const key = ref.push().key;
-		ref.orderByKey().startAt(key).on('child_added', snapshot => {
+		const refMessages = this.ref.child('messages');
+		const refNewMessages = refMessages.orderByChild("time").startAt(Date.now());
+
+		refNewMessages.on('child_added', snapshot => {
 			this.emit('new_message', snapshot.val());
 		});
 	}
@@ -42,9 +44,11 @@ export default class Chat extends EventEmitter{
 	registerUser(user){
 		const deferred = new Deferred();
 
-		this.ref.child('users/'+user.id).set(user.name).then(() => {
-			user.appendConversation(this.id).then(() => {
-				deferred.resolve(true);
+		this.ref.child('users/'+user.id).push({
+			insertedAt: Date.now()
+		}).then(() => {
+			user.appendConversation(this).then((conversation) => {
+				deferred.resolve(conversation);
 			});
 		});
 
@@ -53,10 +57,9 @@ export default class Chat extends EventEmitter{
 
 	unregisterUser(user){
 		const deferred = new Deferred();
-		const uid = user.id;
 
-		this.ref.child('users/'+uid).remove().then(() => {
-			user.removeConversation(this.id);
+		this.ref.child('users/'+user.id).remove().then(() => {
+			user.removeConversation(this);
 
 			deferred.resolve(true);
 		});
@@ -65,11 +68,7 @@ export default class Chat extends EventEmitter{
 	}
 
 	sendMessage(user, message){
-		var refMessages = this.ref.child('messages');
-		var key = refMessages.push().key;
-
-		return refMessages.child(key).set({
-			id: key,
+		return this.ref.child('messages').push({
 			user: user.id,
 			message: message,
 			time: Date.now()
@@ -84,8 +83,9 @@ export default class Chat extends EventEmitter{
 				deferred.resolve([]);
 			}
 
-			const messages = Object.values(snapshot.val()).map(data => {
-				return data;
+			let messages = [];
+			snapshot.forEach(childSnapshot => {
+				messages.push(childSnapshot.val());
 			});
 
 			deferred.resolve(messages);

@@ -409,6 +409,19 @@ module.exports = Deferred;
 "use strict";
 
 
+if (!Date.now) {
+	Date.now = function () {
+		return new Date().getTime();
+	};
+}
+
+/***/ }),
+/* 3 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
 Object.defineProperty(exports, "__esModule", {
 	value: true
 });
@@ -423,7 +436,7 @@ var _mozillaDeferred = __webpack_require__(1);
 
 var _mozillaDeferred2 = _interopRequireDefault(_mozillaDeferred);
 
-var _Prototypes = __webpack_require__(3);
+var _Prototypes = __webpack_require__(2);
 
 var _Prototypes2 = _interopRequireDefault(_Prototypes);
 
@@ -457,18 +470,19 @@ var Chat = function (_EventEmitter) {
 		value: function initRefUser() {
 			var _this2 = this;
 
-			var users = this.ref.child('users');
+			var refUsers = this.ref.child('users');
+			var refNewUsers = refUsers.orderByChild("insertedAt").startAt(Date.now());
 
-			users.on('child_added', function (snapshot) {
-				var uid = snapshot.key;
+			refNewUsers.on('child_added', function (snapshot) {
+				var id = snapshot.key;
 
-				_this2.emit('user_join', uid);
+				_this2.emit('user_joined', id);
 			});
 
-			users.on('child_removed', function (snapshot) {
-				var uid = snapshot.key;
+			refNewUsers.on('child_removed', function (snapshot) {
+				var id = snapshot.key;
 
-				_this2.emit('user_leave', uid);
+				_this2.emit('user_leaved', id);
 			});
 		}
 	}, {
@@ -476,9 +490,10 @@ var Chat = function (_EventEmitter) {
 		value: function initRefMessages() {
 			var _this3 = this;
 
-			var ref = this.ref.child('messages');
-			var key = ref.push().key;
-			ref.orderByKey().startAt(key).on('child_added', function (snapshot) {
+			var refMessages = this.ref.child('messages');
+			var refNewMessages = refMessages.orderByChild("time").startAt(Date.now());
+
+			refNewMessages.on('child_added', function (snapshot) {
 				_this3.emit('new_message', snapshot.val());
 			});
 		}
@@ -489,9 +504,11 @@ var Chat = function (_EventEmitter) {
 
 			var deferred = new _mozillaDeferred2.default();
 
-			this.ref.child('users/' + user.id).set(user.name).then(function () {
-				user.appendConversation(_this4.id).then(function () {
-					deferred.resolve(true);
+			this.ref.child('users/' + user.id).push({
+				insertedAt: Date.now()
+			}).then(function () {
+				user.appendConversation(_this4).then(function (conversation) {
+					deferred.resolve(conversation);
 				});
 			});
 
@@ -503,10 +520,9 @@ var Chat = function (_EventEmitter) {
 			var _this5 = this;
 
 			var deferred = new _mozillaDeferred2.default();
-			var uid = user.id;
 
-			this.ref.child('users/' + uid).remove().then(function () {
-				user.removeConversation(_this5.id);
+			this.ref.child('users/' + user.id).remove().then(function () {
+				user.removeConversation(_this5);
 
 				deferred.resolve(true);
 			});
@@ -516,11 +532,7 @@ var Chat = function (_EventEmitter) {
 	}, {
 		key: 'sendMessage',
 		value: function sendMessage(user, message) {
-			var refMessages = this.ref.child('messages');
-			var key = refMessages.push().key;
-
-			return refMessages.child(key).set({
-				id: key,
+			return this.ref.child('messages').push({
 				user: user.id,
 				message: message,
 				time: Date.now()
@@ -536,8 +548,9 @@ var Chat = function (_EventEmitter) {
 					deferred.resolve([]);
 				}
 
-				var messages = Object.values(snapshot.val()).map(function (data) {
-					return data;
+				var messages = [];
+				snapshot.forEach(function (childSnapshot) {
+					messages.push(childSnapshot.val());
 				});
 
 				deferred.resolve(messages);
@@ -551,19 +564,6 @@ var Chat = function (_EventEmitter) {
 }(_events2.default);
 
 exports.default = Chat;
-
-/***/ }),
-/* 3 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-
-if (!Date.now) {
-	Date.now = function () {
-		return new Date().getTime();
-	};
-}
 
 /***/ }),
 /* 4 */
@@ -658,9 +658,13 @@ var _User = __webpack_require__(7);
 
 var _User2 = _interopRequireDefault(_User);
 
-var _Chat = __webpack_require__(2);
+var _Chat = __webpack_require__(3);
 
 var _Chat2 = _interopRequireDefault(_Chat);
+
+var _Prototypes = __webpack_require__(2);
+
+var _Prototypes2 = _interopRequireDefault(_Prototypes);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -694,20 +698,20 @@ var Room = function (_EventEmitter) {
 			var _this2 = this;
 
 			var refUsers = this.ref.child('users');
-			var key = refUsers.push().key;
-			var queryUsers = refUsers.orderByKey().startAt(key);
+			var refNewUsers = refUsers.orderByChild("createdAt").startAt(Date.now());
 
-			queryUsers.on('child_added', function (snapshot) {
-				var uid = snapshot.val().uid;
-				var user = new _User2.default(uid, snapshot.val(), _this2, _this2.ref.child('users/' + uid));
+			refNewUsers.on('child_added', function (snapshot) {
+				var id = snapshot.key;
 
-				_this2.emit("user_enter", user);
+				var user = new _User2.default(id, snapshot.val(), _this2, snapshot.ref);
+
+				_this2.emit("user_registered", user);
 			});
 
-			queryUsers.on('child_removed', function (snapshot) {
-				var uid = snapshot.val().uid;
+			refNewUsers.on('child_removed', function (snapshot) {
+				var id = snapshot.key;
 
-				_this2.emit("user_leave", uid);
+				_this2.emit("user_removed", id);
 			});
 		}
 	}, {
@@ -716,16 +720,19 @@ var Room = function (_EventEmitter) {
 			var _this3 = this;
 
 			var refOnline = this.ref.child('online');
-			refOnline.on('child_added', function (snapshot) {
+			var key = refOnline.push().key;
+			var refNewOnline = refOnline.orderByKey().startAt(key);
+
+			refNewOnline.on('child_added', function (snapshot) {
 				var connection = snapshot.key;
 
-				_this3.emit("user_online_enter", connection);
+				_this3.emit("user_joined", connection);
 			});
 
-			refOnline.on('child_removed', function (snapshot) {
+			refNewOnline.on('child_removed', function (snapshot) {
 				var connection = snapshot.key;
 
-				_this3.emit("user_online_leave", connection);
+				_this3.emit("user_leaved", connection);
 			});
 		}
 	}, {
@@ -733,50 +740,73 @@ var Room = function (_EventEmitter) {
 		value: function initRefChat() {
 			var _this4 = this;
 
-			this.ref.child('chats').on('child_added', function (snapshot) {
-				var id = snapshot.key;
-				var chat = new _Chat2.default(id, snapshot.val(), _this4, _this4.ref.child('chats/' + id));
+			var refChat = this.ref.child('chats');
+			var refNewChats = refChat.orderByChild("createdAt").startAt(Date.now());
 
-				_this4.emit("chat_create", chat);
+			refNewChats.on('child_added', function (snapshot) {
+				var id = snapshot.key;
+				var chat = new _Chat2.default(id, snapshot.val(), snapshot.ref);
+
+				_this4.emit("chat_created", chat);
 			});
 
-			this.ref.child('chats').on('child_removed', function (snapshot) {
+			refNewChats.on('child_removed', function (snapshot) {
 				var id = snapshot.key;
 
-				_this4.emit("chat_remove", id);
+				_this4.emit("chat_removed", id);
 			});
 		}
 	}, {
-		key: 'registerUser',
-		value: function registerUser(uid, name) {
+		key: 'getUsers',
+		value: function getUsers() {
 			var _this5 = this;
+
+			var deferred = new _mozillaDeferred2.default();
+
+			this.ref.child('users').once('value', function (snapshot) {
+				if (!snapshot.hasChildren()) {
+					deferred.resolve([]);
+				}
+
+				var users = [];
+
+				snapshot.forEach(function (childSnapshot) {
+					var id = childSnapshot.key;
+					var data = childSnapshot.val();
+					var ref = childSnapshot.ref;
+
+					users.push(new _User2.default(id, data, _this5, ref));
+				});
+
+				deferred.resolve(users);
+			});
+
+			return deferred.promise;
+		}
+	}, {
+		key: 'registerUser',
+		value: function registerUser(id, name) {
+			var _this6 = this;
 
 			var status = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 'visible';
 
 
 			var deferred = new _mozillaDeferred2.default();
 
-			var refUsers = this.ref.child('users');
-
-			refUsers.orderByChild("uid").equalTo(uid).once('value', function (snapshot) {
-				var ref = void 0;
+			this.ref.child('users/' + id).once('value', function (snapshot) {
 				var data = {
-					uid: uid,
 					name: name,
-					status: status
+					status: status,
+					createdAt: Date.now()
 				};
 
 				if (snapshot.hasChildren()) {
-					var key = Object.keys(snapshot.val())[0];
-
-					ref = snapshot.ref.child(key);
-					data = Object.values(snapshot.val())[0];
+					data = snapshot.val();
 				} else {
-					ref = refUsers.push();
-					ref.set(data);
+					snapshot.ref.set(data);
 				}
 
-				var user = new _User2.default(uid, data, _this5, ref);
+				var user = new _User2.default(id, data, _this6, snapshot.ref);
 
 				deferred.resolve(user);
 			});
@@ -784,12 +814,17 @@ var Room = function (_EventEmitter) {
 			return deferred.promise;
 		}
 	}, {
+		key: 'unregisterUser',
+		value: function unregisterUser(user) {
+			return this.ref.child('users/' + user.id).remove();
+		}
+	}, {
 		key: 'connectAs',
 		value: function connectAs(user, auth) {
 			var refOnline = this.ref.child('online');
 			var refAuth = user.ref.child('auth');
 
-			var connectionUid = auth.getUid();
+			var connectionid = auth.getUid();
 
 			if (!user.connection) {
 				user.connection = refOnline.push().key;
@@ -801,47 +836,48 @@ var Room = function (_EventEmitter) {
 
 			var refAuthChild = refAuth.push();
 
-			refAuthChild.set(connectionUid);
+			refAuthChild.set(connectionid);
 			refAuthChild.onDisconnect().remove();
 
-			var refOnlineChild = refOnline.child(user.connection).push;
+			var refOnlineChild = refOnline.child(user.connection).push();
 
-			var uniqueId = Math.random().toString(36).substr(2, 10);
-
-			refOnlineChild.set(uniqueId);
+			refOnlineChild.set(user.id);
 			refOnlineChild.onDisconnect().remove();
 
-			user.ref.child('connection').onDisconnect().remove();
+			var userConnectionRef = user.ref.child('connection');
+
+			userConnectionRef.on('value', function (snapshot) {
+				if (snapshot.val() !== null) {
+					return;
+				}
+
+				snapshot.ref.set(user.connection);
+			});
+
+			userConnectionRef.onDisconnect().remove();
 		}
 	}, {
-		key: 'getUsers',
-		value: function getUsers() {
-			var _this6 = this;
+		key: 'getChats',
+		value: function getChats() {
+			var _this7 = this;
 
 			var deferred = new _mozillaDeferred2.default();
 
-			this.ref.child('users').once('value', function (snapshot) {
+			this.ref.child('chats').once('value', function (snapshot) {
 				if (!snapshot.hasChildren()) {
 					deferred.resolve([]);
 				}
 
-				var users = Object.values(snapshot.val()).map(function (data) {
-					var uid = data.uid;
+				var chats = [];
 
-					var ref = snapshot.ref.child(uid);
-
-					return new _User2.default(uid, data, _this6, ref);
+				snapshot.forEach(function (snapshot) {
+					chats.push(new _Chat2.default(snapshot.key, _this7, snapshot.ref));
 				});
 
 				deferred.resolve(users);
 			});
 
 			return deferred.promise;
-		}
-	}, {
-		key: 'unregisterUser',
-		value: function unregisterUser(user) {
-			return this.ref.child('users').orderByChild("uid").equalTo(user.uid).remove();
 		}
 	}, {
 		key: 'createChat',
@@ -853,8 +889,8 @@ var Room = function (_EventEmitter) {
 		}
 	}, {
 		key: 'deleteChat',
-		value: function deleteChat(id) {
-			return this.ref.child('chats/' + id).remove();
+		value: function deleteChat(chat) {
+			return this.ref.child('chats/' + chat.id).remove();
 		}
 	}]);
 
@@ -884,7 +920,7 @@ var _mozillaDeferred = __webpack_require__(1);
 
 var _mozillaDeferred2 = _interopRequireDefault(_mozillaDeferred);
 
-var _Chat = __webpack_require__(2);
+var _Chat = __webpack_require__(3);
 
 var _Chat2 = _interopRequireDefault(_Chat);
 
@@ -934,9 +970,34 @@ var User = function (_EventEmitter) {
 	}
 
 	_createClass(User, [{
+		key: 'initRefConversations',
+		value: function initRefConversations() {
+			var _this2 = this;
+
+			var refConversations = this.ref.child('conversations');
+			var refNewConversations = refConversations.orderByChild("createdAt").startAt(Date.now());
+
+			refNewConversations.on('child_added', function (snapshot) {
+				var data = snapshot.val();
+
+				var idChat = data.idChat;
+				var chat = new _Chat2.default(idChat, _this2.room, _this2.room.ref.child('chats/' + idChat));
+
+				var conversation = new _Conversation2.default(_this2, chat, data.lastSeen, snapshot.ref);
+
+				_this2.emit('conversation_created', conversation);
+			});
+
+			refNewConversations.on('child_removed', function (snapshot) {
+				var key = snapshot.key;
+
+				_this2.emit('conversation_removed', key);
+			});
+		}
+	}, {
 		key: 'getConversations',
 		value: function getConversations() {
-			var _this2 = this;
+			var _this3 = this;
 
 			var deferred = new _mozillaDeferred2.default();
 
@@ -945,11 +1006,14 @@ var User = function (_EventEmitter) {
 					deferred.resolve([]);
 				}
 
-				var conversations = Object.values(snapshot.val()).map(function (data) {
-					var idChat = data.idChat;
-					var chat = new _Chat2.default(idChat, _this2.room, _this2.room.ref.child('chats/' + idChat));
+				var conversations = [];
+				snapshot.forEach(function (childSnapshot) {
+					var data = childSnapshot.val();
 
-					return new _Conversation2.default(_this2, chat, data.lastSeen);
+					var idChat = data.idChat;
+					var chat = new _Chat2.default(idChat, _this3.room, _this3.room.ref.child('chats/' + idChat));
+
+					conversations.push(new _Conversation2.default(_this3, chat, data.lastSeen, childSnapshot.ref));
 				});
 
 				deferred.resolve(conversations);
@@ -958,35 +1022,36 @@ var User = function (_EventEmitter) {
 			return deferred.promise;
 		}
 	}, {
-		key: 'initRefConversations',
-		value: function initRefConversations() {
-			var _this3 = this;
-
-			this.ref.child('conversations').on('child_added', function (snapshot) {
-				var data = snapshot.val();
-				var idChat = data.idChat;
-				var chat = new _Chat2.default(idChat, _this3.room, _this3.room.ref.child('chats/' + idChat));
-
-				var conversation = new _Conversation2.default(_this3, chat, data.lastSeen);
-
-				_this3.emit('conversation_create', conversation);
-			});
-
-			this.ref.child('conversations').on('child_removed', function (snapshot) {
-				var key = snapshot.key;
-
-				_this3.emit('conversation_remove', key);
-			});
-		}
-	}, {
 		key: 'appendConversation',
-		value: function appendConversation(idChat) {
-			return this.ref.child('conversations/' + idChat).set({ idChat: idChat, lastSeen: Date.now() });
+		value: function appendConversation(chat) {
+			var _this4 = this;
+
+			var deferred = new _mozillaDeferred2.default();
+
+			this.ref.child('conversations/' + chat.id).on('value', function (snapshot) {
+				var data = {
+					idChat: chat.id,
+					lastSeen: Date.now(),
+					createdAt: Date.now()
+				};
+
+				if (snapshot.hasChildren()) {
+					data = snapshot.val();
+				} else {
+					snapshot.ref.set(data);
+				}
+
+				var conversation = new _Conversation2.default(_this4, chat, data.lastSeen, snapshot.ref);
+
+				deferred.resolve(conversation);
+			});
+
+			return deferred.promise;
 		}
 	}, {
 		key: 'removeConversation',
-		value: function removeConversation(idChat) {
-			return this.ref.child('conversations/' + idChat).remove();
+		value: function removeConversation(chat) {
+			return this.ref.child('conversations/' + chat.id).remove();
 		}
 	}]);
 
@@ -1019,7 +1084,7 @@ var _mozillaDeferred = __webpack_require__(1);
 
 var _mozillaDeferred2 = _interopRequireDefault(_mozillaDeferred);
 
-var _Prototypes = __webpack_require__(3);
+var _Prototypes = __webpack_require__(2);
 
 var _Prototypes2 = _interopRequireDefault(_Prototypes);
 
@@ -1027,36 +1092,55 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
-var Conversation = function () {
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var Conversation = function (_EventEmitter) {
+	_inherits(Conversation, _EventEmitter);
+
 	//ref conversation
-	function Conversation(user, chat, lastSeen) {
+	function Conversation(user, chat, lastSeen, ref) {
 		_classCallCheck(this, Conversation);
 
-		this.user = user;
-		this.chat = chat;
-		this.lastSeen = lastSeen;
+		var _this = _possibleConstructorReturn(this, (Conversation.__proto__ || Object.getPrototypeOf(Conversation)).call(this));
 
-		this.listenToChatEvents();
+		_this.user = user;
+		_this.chat = chat;
+
+		_this.lastSeen = lastSeen;
+
+		_this.ref = ref;
+
+		_this.listenToChatEvents();
+		return _this;
 	}
 
 	_createClass(Conversation, [{
 		key: 'listenToChatEvents',
 		value: function listenToChatEvents() {
-			var _this = this;
+			var _this2 = this;
 
 			this.chat.on('new_message', function (message) {
-				return _this.emit('new_message', message);
+				return _this2.emit('new_message', message);
 			});
+		}
+	}, {
+		key: 'updateLastSeen',
+		value: function updateLastSeen(timestamp) {
+			this.lastSeen = timestamp || Date.now();
+
+			return this.ref.update({ lastSeen: lastSeen });
 		}
 	}, {
 		key: 'sendMessage',
 		value: function sendMessage(message) {
-			return this.chat.sendMessage(this.user.id, message);
+			return this.chat.sendMessage(this.user, message);
 		}
 	}]);
 
 	return Conversation;
-}();
+}(_events2.default);
 
 exports.default = Conversation;
 
