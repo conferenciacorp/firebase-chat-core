@@ -44,10 +44,12 @@ export default class Chat extends EventEmitter{
 	registerUser(user){
 		const deferred = new Deferred();
 
+		const time = Date.now();
+
 		this.ref.child('users/'+user.id).set({
-			insertedAt: Date.now()
+			insertedAt: time
 		}).then(() => {
-			user.appendConversation(this).then((conversation) => {
+			user.appendConversation(this, time).then((conversation) => {
 				deferred.resolve(conversation);
 			});
 		});

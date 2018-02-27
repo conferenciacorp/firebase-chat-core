@@ -81,14 +81,14 @@ export default class User extends EventEmitter{
 		return deferred.promise;
 	}
 
-	appendConversation(chat){
+	appendConversation(chat, time){
 		const deferred = new Deferred();
 
 		this.ref.child('conversations/'+chat.id).on('value', snapshot => {
 			let data = {
 				idChat: chat.id,
-				lastSeen: Date.now(),
-				createdAt: Date.now()
+				lastSeen: time || Date.now(),
+				createdAt: time || Date.now()
 			};
 
 			if(snapshot.hasChildren()){
