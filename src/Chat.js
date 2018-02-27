@@ -44,7 +44,7 @@ export default class Chat extends EventEmitter{
 	registerUser(user){
 		const deferred = new Deferred();
 
-		this.ref.child('users/'+user.id).push({
+		this.ref.child('users/'+user.id).set({
 			insertedAt: Date.now()
 		}).then(() => {
 			user.appendConversation(this).then((conversation) => {
