@@ -824,7 +824,6 @@ var Room = function (_EventEmitter) {
 		key: 'connectAs',
 		value: function connectAs(user, auth) {
 			var refOnline = this.ref.child('online');
-			var refAuth = user.ref.child('auth');
 
 			var connectionid = auth.getUid();
 
@@ -832,31 +831,18 @@ var Room = function (_EventEmitter) {
 				user.connection = refOnline.push().key;
 			}
 
-			user.ref.update({
-				connection: user.connection
-			});
-
-			var refAuthChild = refAuth.push();
-
-			refAuthChild.set(connectionid);
-			refAuthChild.onDisconnect().remove();
-
+			var refAuthChild = user.ref.child('auth/' + connectionid).push();
 			var refOnlineChild = refOnline.child(user.connection).push();
+			var refUserConnectionChild = user.ref.child('connection/' + user.connection).push();
+
+			refAuthChild.set(Date.now());
+			refAuthChild.onDisconnect().remove();
 
 			refOnlineChild.set(user.id);
 			refOnlineChild.onDisconnect().remove();
 
-			var userConnectionRef = user.ref.child('connection');
-
-			userConnectionRef.on('value', function (snapshot) {
-				if (snapshot.val() !== null) {
-					return;
-				}
-
-				snapshot.ref.set(user.connection);
-			});
-
-			userConnectionRef.onDisconnect().remove();
+			refUserConnectionChild.set(Date.now());
+			refUserConnectionChild.onDisconnect().remove();
 		}
 	}, {
 		key: 'getChats',
@@ -949,8 +935,11 @@ var User = function (_EventEmitter) {
 		_this.id = id;
 		_this.name = user.name;
 		_this.status = user.status;
-		_this.connection = user.connection;
 		_this.room = room;
+
+		if (typeof user.connection != "undefined") {
+			_this.connection = Object.keys(user.connection)[0];
+		}
 
 		_this.ref = ref;
 

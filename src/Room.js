@@ -138,9 +138,11 @@ export default class Room extends EventEmitter{ //ref room
 			connection : user.connection
 		});
 
-		const refAuthChild = refAuth.push();
+		const refAuthChild = refAuth.child(connectionid);
 
-		refAuthChild.set(connectionid);
+		refAuthChild.set({
+			insertedAt: Date.now()
+		});
 		refAuthChild.onDisconnect().remove();
 
 		const refOnlineChild = refOnline.child(user.connection).push();
@@ -148,17 +150,27 @@ export default class Room extends EventEmitter{ //ref room
 		refOnlineChild.set(user.id);
 		refOnlineChild.onDisconnect().remove();
 
-		const userConnectionRef = user.ref.child('connection');
+		user.ref.on('value', snapshot => {
+			const data = snapshot.val();
 
-		userConnectionRef.on('value', snapshot => {
-			if(snapshot.val() !== null){
+			if(data === null){
 				return;
 			}
 
-			snapshot.ref.set(user.connection);
+			if(typeof data.connection == "undefined"){
+				snapshot.ref.update({
+					connection: user.connection
+				});
+			}
+
+			if(typeof data.auth[connectionid] == "undefined"){
+				refAuthChild.set({
+					insertedAt: Date.now()
+				});
+			}
 		});
 
-		userConnectionRef.onDisconnect().remove();
+		user.ref.child('connection').onDisconnect().remove();
 	}
 
 	getChats(){
