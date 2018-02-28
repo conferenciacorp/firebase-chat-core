@@ -17,7 +17,9 @@ export default class Conversation extends EventEmitter{ //ref conversation
 	}
 
 	listenToChatEvents(){
-		this.chat.on('new_message', message => this.emit('new_message', message));
+		this.chat.on('new_message', message => {
+			this.emit('new_message', message)
+		});
 	}
 
 	updateLastSeen(timestamp){

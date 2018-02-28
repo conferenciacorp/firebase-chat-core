@@ -504,10 +504,12 @@ var Chat = function (_EventEmitter) {
 
 			var deferred = new _mozillaDeferred2.default();
 
-			this.ref.child('users/' + user.id).push({
-				insertedAt: Date.now()
+			var time = Date.now();
+
+			this.ref.child('users/' + user.id).set({
+				insertedAt: time
 			}).then(function () {
-				user.appendConversation(_this4).then(function (conversation) {
+				user.appendConversation(_this4, time).then(function (conversation) {
 					deferred.resolve(conversation);
 				});
 			});
@@ -1023,7 +1025,7 @@ var User = function (_EventEmitter) {
 		}
 	}, {
 		key: 'appendConversation',
-		value: function appendConversation(chat) {
+		value: function appendConversation(chat, time) {
 			var _this4 = this;
 
 			var deferred = new _mozillaDeferred2.default();
@@ -1031,8 +1033,8 @@ var User = function (_EventEmitter) {
 			this.ref.child('conversations/' + chat.id).on('value', function (snapshot) {
 				var data = {
 					idChat: chat.id,
-					lastSeen: Date.now(),
-					createdAt: Date.now()
+					lastSeen: time || Date.now(),
+					createdAt: time || Date.now()
 				};
 
 				if (snapshot.hasChildren()) {
@@ -1122,7 +1124,7 @@ var Conversation = function (_EventEmitter) {
 			var _this2 = this;
 
 			this.chat.on('new_message', function (message) {
-				return _this2.emit('new_message', message);
+				_this2.emit('new_message', message);
 			});
 		}
 	}, {

@@ -1,7 +1,7 @@
 {
-  "name": "chat",
-  "version": "0.0.1",
-  "description": "Chat from ConferenciaCorp",
+  "name": "firebase-chat-core",
+  "version": "1.0.0",
+  "description": "Core Chat from ConferenciaCorp",
   "main": "dist/index.js",
   "scripts": {
     "build": "npx webpack --config webpack.config.js"
