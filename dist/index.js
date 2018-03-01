@@ -825,13 +825,13 @@ var Room = function (_EventEmitter) {
 		value: function connectAs(user, auth) {
 			var refOnline = this.ref.child('online');
 
-			var connectionid = auth.getUid();
+			var authUid = auth.getUid();
 
 			if (!user.connection) {
 				user.connection = refOnline.push().key;
 			}
 
-			var refAuthChild = user.ref.child('auth/' + connectionid).push();
+			var refAuthChild = user.ref.child('auth/' + authUid).push();
 			var refOnlineChild = refOnline.child(user.connection).push();
 			var refUserConnectionChild = user.ref.child('connection/' + user.connection).push();
 
@@ -971,7 +971,7 @@ var User = function (_EventEmitter) {
 			refNewConversations.on('child_added', function (snapshot) {
 				var data = snapshot.val();
 
-				var idChat = data.idChat;
+				var idChat = childSnapshot.key;
 				var chat = new _Chat2.default(idChat, _this2.room, _this2.room.ref.child('chats/' + idChat));
 
 				var conversation = new _Conversation2.default(_this2, chat, data.lastSeen, snapshot.ref);
@@ -1001,7 +1001,7 @@ var User = function (_EventEmitter) {
 				snapshot.forEach(function (childSnapshot) {
 					var data = childSnapshot.val();
 
-					var idChat = data.idChat;
+					var idChat = childSnapshot.key;
 					var chat = new _Chat2.default(idChat, _this3.room, _this3.room.ref.child('chats/' + idChat));
 
 					conversations.push(new _Conversation2.default(_this3, chat, data.lastSeen, childSnapshot.ref));
@@ -1021,7 +1021,6 @@ var User = function (_EventEmitter) {
 
 			this.ref.child('conversations/' + chat.id).on('value', function (snapshot) {
 				var data = {
-					idChat: chat.id,
 					lastSeen: time || Date.now(),
 					createdAt: time || Date.now()
 				};

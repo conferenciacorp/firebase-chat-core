@@ -126,51 +126,25 @@ export default class Room extends EventEmitter{ //ref room
 
 	connectAs(user, auth){
 		const refOnline = this.ref.child('online');
-		const refAuth = user.ref.child('auth');
 
-		const connectionid = auth.getUid();
+		const authUid = auth.getUid();
 
 		if(!user.connection){
 			user.connection = refOnline.push().key;
 		}
 
-		user.ref.update({
-			connection : user.connection
-		});
-
-		const refAuthChild = refAuth.child(connectionid);
-
-		refAuthChild.set({
-			insertedAt: Date.now()
-		});
-		refAuthChild.onDisconnect().remove();
-
+		const refAuthChild = user.ref.child('auth/'+authUid).push();
 		const refOnlineChild = refOnline.child(user.connection).push();
+		const refUserConnectionChild = user.ref.child('connection/'+user.connection).push();
+
+		refAuthChild.set(Date.now());
+		refAuthChild.onDisconnect().remove();
 
 		refOnlineChild.set(user.id);
 		refOnlineChild.onDisconnect().remove();
 
-		user.ref.on('value', snapshot => {
-			const data = snapshot.val();
-
-			if(data === null){
-				return;
-			}
-
-			if(typeof data.connection == "undefined"){
-				snapshot.ref.update({
-					connection: user.connection
-				});
-			}
-
-			if(typeof data.auth[connectionid] == "undefined"){
-				refAuthChild.set({
-					insertedAt: Date.now()
-				});
-			}
-		});
-
-		user.ref.child('connection').onDisconnect().remove();
+		refUserConnectionChild.set(Date.now());
+		refUserConnectionChild.onDisconnect().remove();
 	}
 
 	getChats(){

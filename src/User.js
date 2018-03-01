@@ -14,8 +14,11 @@ export default class User extends EventEmitter{
 		this.id = id;
 		this.name = user.name;
 		this.status = user.status;
-		this.connection = user.connection;
 		this.room = room;
+
+		if(typeof user.connection != "undefined"){
+			this.connection = Object.keys(user.connection)[0];
+		}
 
 		this.ref = ref;
 
@@ -42,7 +45,7 @@ export default class User extends EventEmitter{
 		refNewConversations.on('child_added', snapshot => {
 			const data = snapshot.val();
 
-			const idChat = data.idChat;
+			const idChat = childSnapshot.key;
 			const chat = new Chat(idChat, this.room, this.room.ref.child('chats/'+idChat));
 
 			const conversation = new Conversation(this, chat, data.lastSeen, snapshot.ref);
@@ -69,7 +72,7 @@ export default class User extends EventEmitter{
 			snapshot.forEach(childSnapshot => {
 				const data = childSnapshot.val();
 
-				const idChat = data.idChat;
+				const idChat = childSnapshot.key;
 				const chat = new Chat(idChat, this.room, this.room.ref.child('chats/'+idChat));
 
 				conversations.push(new Conversation(this, chat, data.lastSeen, childSnapshot.ref));
@@ -86,7 +89,6 @@ export default class User extends EventEmitter{
 
 		this.ref.child('conversations/'+chat.id).on('value', snapshot => {
 			let data = {
-				idChat: chat.id,
 				lastSeen: time || Date.now(),
 				createdAt: time || Date.now()
 			};
