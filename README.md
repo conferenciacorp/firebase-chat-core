@@ -88,6 +88,46 @@ The Firebase chat core is the core to create a chat. You still need to create a 
 	}
 ```
 
+## RULES Firebase Database
+```json
+	{
+	  "rules": {
+	    ".read": "auth != null",
+	    ".write": "false",
+	    "rooms": {
+	      "$room": {
+	        "users": {
+	          ".write": "auth != null",
+	          ".indexOn": "createdAt",
+	          "conversations": {
+	            "$conversation": {
+	              ".indexOn": "createdAt"
+	            }
+	          }
+	        },
+	        "online": {
+	          ".write": "auth != null"
+	        },
+	        "chats": {
+	          ".indexOn": "createdAt",
+	          "$chat": {
+	            "messages": {
+	              "$message": {
+	                ".write": "root.child('rooms/'+$room+'/users/'+newData.child('user').val()+'/auth/'+auth.uid).exists()",
+	              },
+	              ".indexOn": "time"
+	            },
+	            "users": {
+	              ".write": "auth != null",
+	              ".indexOn": "insertedAt"
+	            }
+	          }
+	        }
+	      }
+	    }
+	  }
+	}
+```
 ## TODO
 
  - Tests
